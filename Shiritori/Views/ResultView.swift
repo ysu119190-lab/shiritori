@@ -36,9 +36,24 @@ struct ResultView: View {
                 .padding(.top, 4)
             }
 
-            Text("続いた単語数: \(game.history.count)")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            VStack(spacing: 6) {
+                Text("続いた単語数: \(game.history.count)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                if game.didSetNewRecord {
+                    Label("最長記録を更新！", systemImage: "trophy.fill")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color.orange.opacity(0.15)))
+                } else {
+                    Text("最長記録: \(game.longestChainRecord)語")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Spacer()
 

@@ -41,6 +41,9 @@ final class ShiritoriGame: ObservableObject {
     /// 決着理由の説明。
     @Published private(set) var resultMessage: String = ""
 
+    /// 今回の対戦で最長記録を更新したか。
+    @Published private(set) var didSetNewRecord: Bool = false
+
     /// 残り時間（制限時間ありのとき）。
     @Published var remainingTime: Int = 0
 
@@ -79,6 +82,7 @@ final class ShiritoriGame: ObservableObject {
         requiredStartKana = nil
         loserIndex = nil
         resultMessage = ""
+        didSetNewRecord = false
         remainingTime = settings.turnTimeLimit
         phase = .playing
     }
@@ -186,8 +190,14 @@ final class ShiritoriGame: ObservableObject {
     private func finish(loser: Int, message: String) {
         loserIndex = loser
         resultMessage = message
+        // 続いた単語数（＝最後の「ん」止まりの語も含む）を記録に反映。
+        didSetNewRecord = GameRecord.update(chain: history.count)
         phase = .finished
+        Haptics.gameOver()
     }
+
+    /// これまでの最長連鎖記録。
+    var longestChainRecord: Int { GameRecord.longestChain }
 
     /// 勝者（負けた人以外）の名前一覧。
     var winnerNames: [String] {

@@ -134,6 +134,13 @@ struct SetupView: View {
     private var infoSection: some View {
         Section {
             HStack {
+                Label("最長記録", systemImage: "trophy.fill")
+                    .foregroundStyle(.orange)
+                Spacer()
+                Text(game.longestChainRecord > 0 ? "\(game.longestChainRecord)語" : "—")
+                    .foregroundStyle(.secondary)
+            }
+            HStack {
                 Text("同梱辞書")
                 Spacer()
                 Text("\(game.bundledWordCount)語")
