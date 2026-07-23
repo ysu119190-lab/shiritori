@@ -33,6 +33,14 @@
 
 > このプロジェクトは Xcode 16 の *file system synchronized group* を使っており、`Shiritori/` フォルダ内のファイルは自動的にターゲットへ含まれます。
 
+## CI（自動ビルド）
+
+`main` への Pull Request と push のたびに、GitHub Actions がアプリを自動ビルドして壊れていないか検証します（`.github/workflows/ci.yml`）。
+
+- ランナー: `macos-15`（Xcode 16 系）
+- 内容: `xcodebuild build` で iOS シミュレータ向けにビルド（コード署名なし）
+- ビルドログは成否にかかわらず artifact として保存されます
+
 ## 単語判定について
 
 単語の実在判定は次の 2 段構えです。
