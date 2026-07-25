@@ -47,8 +47,12 @@
 - [x] UI/機能強化（辞書1,199語・触覚・最長記録・対戦画面刷新） — 完了(2026-07-23)。PR #1。
 - [x] CI（GitHub Actions で iOS ビルド検証）を追加 — 完了(2026-07-23)。
       Xcode 明示選択・機種非依存・PR単位＋自動キャンセルでルール準拠。
-- [ ] CI を実際の PR で緑にする — **要ユーザー**：この branch から main への PR 作成後、
-      初回 run を確認。赤なら run URL を見て修正する。
+- [x] CI を実際の PR で緑にする — 完了(2026-07-23)。PR #2 で Build (iOS) success を確認しマージ。
+      → アプリが実機ビルドできることを確認済み。
+- [x] TestFlight 配信の準備 — 完了(2026-07-23)。
+      Bundle ID を `io.github.ysu119190-lab.mojitori` に設定、1024px アイコン実体化、
+      `testflight.yml`（手動実行・署名インポート・archive/export・ASC アップロード）を作成。
+      ※ **要ユーザー**：ASC でのアプリ登録・Secrets 登録後に Run workflow で実行。
 - [ ] （任意）かな判定ロジックのユニットテストを追加し CI に組み込む。
 - [ ] （任意）効果音 / 使った単語の共有 / 単語の意味リンク / iPad 表示最適化。
 - [ ] （任意）オンライン対戦（Game Center or MultipeerConnectivity）。開発者登録は加入済み。
