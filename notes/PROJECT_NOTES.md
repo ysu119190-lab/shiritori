@@ -51,8 +51,14 @@
       → アプリが実機ビルドできることを確認済み。
 - [x] TestFlight 配信の準備 — 完了(2026-07-23)。
       Bundle ID を `io.github.ysu119190-lab.mojitori` に設定、1024px アイコン実体化、
-      `testflight.yml`（手動実行・署名インポート・archive/export・ASC アップロード）を作成。
-      ※ **要ユーザー**：ASC でのアプリ登録・Secrets 登録後に Run workflow で実行。
+      `testflight.yml`（手動実行）を作成。
+- [ ] TestFlight 初回アップロードを通す — 進行中(2026-07-25)。
+      症状: 手動署名でプロファイルが .p12 の証明書を含まず Archive 失敗
+      （"Provisioning profile ... doesn't include signing certificate ..."）。
+      対応: ワークフローを**自動署名（ASC APIキー + -allowProvisioningUpdates）**に変更し、
+      証明書に合うプロファイルを Xcode 側で自動生成する方式へ。プロファイル用 Secret は不要化。
+      教訓: CI の手動署名は「プロファイルに含まれる証明書」と「.p12 の証明書」を一致させる
+      必要があり、不一致が起きやすい。自動署名なら回避できる。
 - [ ] （任意）かな判定ロジックのユニットテストを追加し CI に組み込む。
 - [ ] （任意）効果音 / 使った単語の共有 / 単語の意味リンク / iPad 表示最適化。
 - [ ] （任意）オンライン対戦（Game Center or MultipeerConnectivity）。開発者登録は加入済み。
