@@ -49,6 +49,8 @@
 - Bundle ID: `io.github.ysu119190-lab.mojitori`
 - ビルド番号は GitHub Actions の run number で単調増加
 - ASCアップロード要件に合わせて Xcode 26 を明示選択
+- **自動署名（ASC API キー方式）**：証明書に合うプロファイルを Xcode が自動生成するため、
+  プロビジョニングプロファイルの手動作成は不要
 - 実行には署名関連の Secrets 登録が必要（下記）
 
 必要な Secrets（Settings → Secrets and variables → Actions）:
@@ -57,7 +59,6 @@
 |---|---|
 | `DIST_CERT_P12_BASE64` | 配布証明書 `.p12` を base64 化 |
 | `P12_PASSWORD` | `.p12` のパスワード |
-| `PROVISIONING_PROFILE_BASE64` | App Store 配布用プロファイルを base64 化 |
 | `ASC_API_KEY_P8_BASE64` | ASC API キー `.p8` を base64 化 |
 | `ASC_KEY_ID` | API キーの Key ID |
 | `ASC_ISSUER_ID` | API キーの Issuer ID |
