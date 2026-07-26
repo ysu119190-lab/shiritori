@@ -21,6 +21,22 @@ enum KanaUtils {
         return result
     }
 
+    /// ひらがなをカタカナに変換する（ぁ-ゖ の範囲を +0x60 でマッピング）。長音符などはそのまま。
+    static func toKatakana(_ s: String) -> String {
+        var result = ""
+        result.unicodeScalars.reserveCapacity(s.unicodeScalars.count)
+        for scalar in s.unicodeScalars {
+            let v = scalar.value
+            // ひらがな (0x3041...0x3096) → カタカナ (+0x60)
+            if v >= 0x3041 && v <= 0x3096, let converted = Unicode.Scalar(v + 0x60) {
+                result.unicodeScalars.append(converted)
+            } else {
+                result.unicodeScalars.append(scalar)
+            }
+        }
+        return result
+    }
+
     /// 前後の空白を除去し、カタカナをひらがなへそろえた「読み」を返す。
     static func normalize(_ s: String) -> String {
         toHiragana(s.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -62,6 +78,40 @@ enum KanaUtils {
         }
         return map
     }()
+
+    /// 「小゛゜」キー用：直前の文字を 濁点→半濁点→小書き … と循環させる表。
+    /// アプリ内キーボード（50音タップ・フリック）で共用する。
+    static let modifierCycle: [Character: Character] = [
+        "あ": "ぁ", "ぁ": "あ",
+        "い": "ぃ", "ぃ": "い",
+        "う": "ぅ", "ぅ": "ゔ", "ゔ": "う",
+        "え": "ぇ", "ぇ": "え",
+        "お": "ぉ", "ぉ": "お",
+        "か": "が", "が": "か",
+        "き": "ぎ", "ぎ": "き",
+        "く": "ぐ", "ぐ": "く",
+        "け": "げ", "げ": "け",
+        "こ": "ご", "ご": "こ",
+        "さ": "ざ", "ざ": "さ",
+        "し": "じ", "じ": "し",
+        "す": "ず", "ず": "す",
+        "せ": "ぜ", "ぜ": "せ",
+        "そ": "ぞ", "ぞ": "そ",
+        "た": "だ", "だ": "た",
+        "ち": "ぢ", "ぢ": "ち",
+        "つ": "っ", "っ": "づ", "づ": "つ",
+        "て": "で", "で": "て",
+        "と": "ど", "ど": "と",
+        "は": "ば", "ば": "ぱ", "ぱ": "は",
+        "ひ": "び", "び": "ぴ", "ぴ": "ひ",
+        "ふ": "ぶ", "ぶ": "ぷ", "ぷ": "ふ",
+        "へ": "べ", "べ": "ぺ", "ぺ": "へ",
+        "ほ": "ぼ", "ぼ": "ぽ", "ぽ": "ほ",
+        "や": "ゃ", "ゃ": "や",
+        "ゆ": "ゅ", "ゅ": "ゆ",
+        "よ": "ょ", "ょ": "よ",
+        "わ": "ゎ", "ゎ": "わ",
+    ]
 
     /// 濁音・半濁音を清音へ戻すマップ（濁点を区別しないマッチ用）。
     static let dakutenBase: [Character: Character] = [

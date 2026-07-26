@@ -104,10 +104,16 @@ struct SetupView: View {
     private var inputSection: some View {
         Section {
             Toggle("アプリ内かなキーボードを使う", isOn: $game.settings.useKanaKeyboard)
+            if game.settings.useKanaKeyboard {
+                Picker("キーボードの種類", selection: $game.settings.kanaKeyboardStyle) {
+                    Text("フリック入力").tag(KanaKeyboardStyle.flick)
+                    Text("50音タップ").tag(KanaKeyboardStyle.grid)
+                }
+            }
         } header: {
             Text("入力方法")
         } footer: {
-            Text("オンにすると、システムのキーボードの代わりにアプリ内の50音キーボードで入力します。予測変換や変換候補が出ないので、しりとりで次の手が読まれてしまうのを防げます。")
+            Text("オンにすると、システムのキーボードの代わりにアプリ内のかなキーボードで入力します。予測変換や変換候補が出ないので、しりとりで次の手が読まれてしまうのを防げます。フリック入力は各キーを上下左右にはじいて「い・う・え・お」段を入力します。")
         }
     }
 

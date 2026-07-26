@@ -13,23 +13,29 @@ final class WebValidator {
         self.session = session
     }
 
-    /// 読み（ひらがな）で Wikipedia を全文検索し、ヒットすれば true。
+    /// 読み（ひらがな）に対応する記事が Wikipedia に存在すれば true。
+    ///
+    /// 全文検索だと無関係な語もほぼ必ずヒットしてしまうため、
+    /// 「記事タイトルの完全一致（リダイレクト解決込み）」で判定する。
+    /// 読みのひらがな表記とカタカナ表記の両方を候補にすることで、
+    /// カタカナ表記のキャラクター名・固有名詞（例:「ぴかちゅう」→「ピカチュウ」）も拾える。
     func exists(_ reading: String) async -> Bool {
-        let trimmed = reading.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
+        let hiragana = reading.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !hiragana.isEmpty else { return false }
+
+        // 完全一致の候補（ひらがな／カタカナ）。同じなら1つだけ。
+        let katakana = KanaUtils.toKatakana(hiragana)
+        let titles = (katakana == hiragana) ? hiragana : "\(hiragana)|\(katakana)"
 
         guard var comps = URLComponents(string: "https://ja.wikipedia.org/w/api.php") else {
             return false
         }
         comps.queryItems = [
             URLQueryItem(name: "action", value: "query"),
-            URLQueryItem(name: "list", value: "search"),
-            URLQueryItem(name: "srsearch", value: trimmed),
-            URLQueryItem(name: "srlimit", value: "1"),
-            URLQueryItem(name: "srinfo", value: "totalhits"),
-            URLQueryItem(name: "srprop", value: ""),
+            URLQueryItem(name: "titles", value: titles),
+            URLQueryItem(name: "redirects", value: "1"),
+            URLQueryItem(name: "formatversion", value: "2"),
             URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "utf8", value: "1"),
         ]
         guard let url = comps.url else { return false }
 
@@ -41,22 +47,24 @@ final class WebValidator {
         do {
             let (data, response) = try await session.data(for: request)
             guard (response as? HTTPURLResponse)?.statusCode == 200 else { return false }
-            let decoded = try JSONDecoder().decode(SearchResponse.self, from: data)
-            return decoded.query.searchinfo.totalhits > 0
+            let decoded = try JSONDecoder().decode(TitlesResponse.self, from: data)
+            // 実在するページ（missing でなく pageid を持つ）が1つでもあれば実在とみなす。
+            return decoded.query?.pages.contains { $0.missing != true && $0.pageid != nil } ?? false
         } catch {
             return false
         }
     }
 
-    // MARK: - レスポンス
+    // MARK: - レスポンス（formatversion=2）
 
-    private struct SearchResponse: Decodable {
+    private struct TitlesResponse: Decodable {
         struct Query: Decodable {
-            struct SearchInfo: Decodable {
-                let totalhits: Int
-            }
-            let searchinfo: SearchInfo
+            let pages: [Page]
         }
-        let query: Query
+        struct Page: Decodable {
+            let pageid: Int?
+            let missing: Bool?
+        }
+        let query: Query?
     }
 }
