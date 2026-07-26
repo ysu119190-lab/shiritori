@@ -30,8 +30,18 @@ struct GameSettings: Codable, Equatable {
     /// 辞書に無い単語でも、参加者が認めれば続行できるようにするか。
     var allowChallengeOverride: Bool
 
+    /// ラリー（手番）ごとにお題の文字数を 1〜9 文字でランダムに決めるモード。
+    /// オンのときは minLength / maxLength ではなく「ちょうどN文字」で判定する。
+    var isRandomLengthMode: Bool
+
+    /// アプリ内のかなキーボードで入力するか（システムIMEの予測変換・変換候補を避ける）。
+    var useKanaKeyboard: Bool
+
     static let minPlayers = 2
     static let maxPlayers = 6
+
+    /// ランダム文字数モードで使う文字数の範囲。
+    static let randomLengthRange = 1...9
 
     static let `default` = GameSettings(
         playerNames: ["プレイヤー1", "プレイヤー2"],
@@ -42,7 +52,9 @@ struct GameSettings: Codable, Equatable {
         useSystemDictionary: true,
         ignoreDakuten: true,
         turnTimeLimit: 0,
-        allowChallengeOverride: true
+        allowChallengeOverride: true,
+        isRandomLengthMode: false,
+        useKanaKeyboard: false
     )
 
     /// 有効な設定へ丸める（人数・文字数の範囲を正す）。
@@ -85,5 +97,25 @@ struct GameSettings: Codable, Equatable {
             return .default
         }
         return decoded.sanitized()
+    }
+}
+
+extension GameSettings {
+    /// 後方互換のためのデコード。既存の保存データに新フィールドが無くても
+    /// 既定値で補って読み込めるようにする（encode は自動合成をそのまま使う）。
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        playerNames = try c.decode([String].self, forKey: .playerNames)
+        minLength = try c.decode(Int.self, forKey: .minLength)
+        isMaxLengthEnabled = try c.decode(Bool.self, forKey: .isMaxLengthEnabled)
+        maxLength = try c.decode(Int.self, forKey: .maxLength)
+        checkExistence = try c.decode(Bool.self, forKey: .checkExistence)
+        useSystemDictionary = try c.decode(Bool.self, forKey: .useSystemDictionary)
+        ignoreDakuten = try c.decode(Bool.self, forKey: .ignoreDakuten)
+        turnTimeLimit = try c.decode(Int.self, forKey: .turnTimeLimit)
+        allowChallengeOverride = try c.decode(Bool.self, forKey: .allowChallengeOverride)
+        // 新規フィールドは無い場合があるので decodeIfPresent で補完する。
+        isRandomLengthMode = try c.decodeIfPresent(Bool.self, forKey: .isRandomLengthMode) ?? false
+        useKanaKeyboard = try c.decodeIfPresent(Bool.self, forKey: .useKanaKeyboard) ?? false
     }
 }

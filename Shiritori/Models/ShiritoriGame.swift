@@ -36,6 +36,10 @@ final class ShiritoriGame: ObservableObject {
     /// 次の単語が始まるべき音。nil のとき（初手）は何から始めてもよい。
     @Published private(set) var requiredStartKana: Character? = nil
 
+    /// ランダム文字数モードで、この手番に要求される「ちょうどの文字数」。
+    /// 通常モードでは nil。
+    @Published private(set) var requiredLength: Int? = nil
+
     /// 決着時の負けプレイヤー。
     @Published private(set) var loserIndex: Int? = nil
     /// 決着理由の説明。
@@ -84,7 +88,16 @@ final class ShiritoriGame: ObservableObject {
         resultMessage = ""
         didSetNewRecord = false
         remainingTime = settings.turnTimeLimit
+        rollRequiredLength()
         phase = .playing
+    }
+
+    /// ランダム文字数モードのとき、この手番のお題文字数を 1〜9 で決める。
+    /// 通常モードでは nil にする。
+    private func rollRequiredLength() {
+        requiredLength = settings.isRandomLengthMode
+            ? Int.random(in: GameSettings.randomLengthRange)
+            : nil
     }
 
     /// 設定画面へ戻る。
@@ -114,11 +127,18 @@ final class ShiritoriGame: ObservableObject {
 
         // 文字数チェック
         let length = reading.count
-        if length < settings.minLength {
-            return .rejected(reason: "\(settings.minLength)文字以上で入力してください")
-        }
-        if settings.isMaxLengthEnabled && length > settings.maxLength {
-            return .rejected(reason: "\(settings.maxLength)文字以内で入力してください")
+        if settings.isRandomLengthMode {
+            // ランダム文字数モード：ちょうどお題の文字数でなければならない。
+            if let required = requiredLength, length != required {
+                return .rejected(reason: "ちょうど\(required)文字で入力してください")
+            }
+        } else {
+            if length < settings.minLength {
+                return .rejected(reason: "\(settings.minLength)文字以上で入力してください")
+            }
+            if settings.isMaxLengthEnabled && length > settings.maxLength {
+                return .rejected(reason: "\(settings.maxLength)文字以内で入力してください")
+            }
         }
 
         // すでに使われた語か
@@ -185,6 +205,7 @@ final class ShiritoriGame: ObservableObject {
     private func advanceTurn() {
         currentPlayerIndex = (currentPlayerIndex + 1) % players.count
         remainingTime = settings.turnTimeLimit
+        rollRequiredLength()
     }
 
     private func finish(loser: Int, message: String) {
