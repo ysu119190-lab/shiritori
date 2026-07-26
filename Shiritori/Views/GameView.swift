@@ -8,6 +8,7 @@ struct GameView: View {
     @State private var errorMessage: String?
     @State private var pendingReading: String?   // 実在確認待ちの語
     @State private var showGiveUpConfirm = false
+    @State private var burstID: Int?             // 受理時のキラッと演出のトリガー
     @FocusState private var inputFocused: Bool
 
     // 制限時間用タイマー（1秒間隔）。
@@ -27,6 +28,14 @@ struct GameView: View {
             Divider()
             historyList
             inputBar
+        }
+        .overlay(alignment: .top) {
+            if let id = burstID {
+                SparkleBurst(color: playerColor)
+                    .id(id)
+                    .offset(y: 150)
+                    .allowsHitTesting(false)
+            }
         }
         .tint(playerColor)
         .onAppear {
@@ -126,7 +135,7 @@ struct GameView: View {
 
     /// ランダム文字数モードで、この手番のお題文字数を大きく見せるバッジ。
     private func lengthBadge(_ required: Int) -> some View {
-        Label("ちょうど \(required) 文字", systemImage: "textformat.123")
+        Label("ちょうど \(required) 文字", systemImage: "target")
             .font(.callout.bold())
             .foregroundStyle(playerColor)
             .padding(.horizontal, 14)
@@ -137,6 +146,7 @@ struct GameView: View {
             .overlay(
                 Capsule().strokeBorder(playerColor.opacity(0.4), lineWidth: 1.5)
             )
+            .contentTransition(.numericText())
             .animation(.spring(duration: 0.3), value: required)
     }
 
@@ -187,10 +197,15 @@ struct GameView: View {
                             color: Self.playerColors[move.playerIndex % Self.playerColors.count]
                         )
                         .id(move.id)
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.8).combined(with: .opacity),
+                            removal: .opacity
+                        ))
                     }
                     Color.clear.frame(height: 1).id(bottomAnchor)
                 }
                 .padding()
+                .animation(.spring(duration: 0.35), value: game.history.count)
             }
             .onChange(of: game.history.count) { _, _ in
                 withAnimation {
@@ -356,6 +371,7 @@ struct GameView: View {
             Haptics.success()
             input = ""
             withAnimation { errorMessage = nil }
+            triggerAcceptEffect()
             if !game.settings.useKanaKeyboard { inputFocused = true }
         case .gameOverByN:
             // 決着ハプティクスは finish() 側で発火。
@@ -366,6 +382,16 @@ struct GameView: View {
             withAnimation { errorMessage = reason }
         case .needsExistenceConfirmation(let reading):
             pendingReading = reading
+        }
+    }
+
+    /// 単語が受理されたときのキラッと演出を出し、少ししたら消す。
+    private func triggerAcceptEffect() {
+        let newID = (burstID ?? 0) + 1
+        burstID = newID
+        Task {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            if burstID == newID { burstID = nil }
         }
     }
 
@@ -419,6 +445,39 @@ private struct MoveRow: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(color.opacity(0.08))
         )
+    }
+}
+
+/// 単語受理時に外へ広がるキラキラ演出。出現時に一度だけアニメーションして消える。
+private struct SparkleBurst: View {
+    let color: Color
+    @State private var animate = false
+
+    private let count = 8
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<count, id: \.self) { i in
+                let angle = Double(i) / Double(count) * 2 * .pi
+                Image(systemName: "sparkle")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(color)
+                    .offset(
+                        x: animate ? cos(angle) * 60 : 0,
+                        y: animate ? sin(angle) * 60 : 0
+                    )
+                    .scaleEffect(animate ? 0.2 : 1.0)
+                    .opacity(animate ? 0 : 1)
+            }
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 34))
+                .foregroundStyle(color)
+                .scaleEffect(animate ? 1.4 : 0.4)
+                .opacity(animate ? 0 : 1)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.7)) { animate = true }
+        }
     }
 }
 

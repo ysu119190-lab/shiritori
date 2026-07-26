@@ -54,7 +54,7 @@ struct GameSettings: Codable, Equatable {
         turnTimeLimit: 0,
         allowChallengeOverride: true,
         isRandomLengthMode: false,
-        useKanaKeyboard: false
+        useKanaKeyboard: true
     )
 
     /// 有効な設定へ丸める（人数・文字数の範囲を正す）。
@@ -81,7 +81,9 @@ struct GameSettings: Codable, Equatable {
 
     // MARK: - 永続化
 
-    private static let storageKey = "GameSettings.v1"
+    // v2: かなキーボードを既定オンにしたので、旧保存値（既定オフ）を引き継がず
+    // 新しい既定から始める。プレイヤー名などは初回のみ再入力になる。
+    private static let storageKey = "GameSettings.v2"
 
     func save() {
         if let data = try? JSONEncoder().encode(self) {

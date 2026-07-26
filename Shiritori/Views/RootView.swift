@@ -4,6 +4,8 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var game: ShiritoriGame
 
+    @State private var showSplash = true
+
     var body: some View {
         ZStack {
             switch game.phase {
@@ -14,7 +16,18 @@ struct RootView: View {
             case .finished:
                 ResultView()
             }
+
+            if showSplash {
+                SplashView()
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
         }
         .animation(.easeInOut(duration: 0.25), value: game.phase)
+        .task {
+            // 起動モーションを見せてからフェードアウト。
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            withAnimation(.easeInOut(duration: 0.5)) { showSplash = false }
+        }
     }
 }
