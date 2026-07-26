@@ -289,11 +289,20 @@ struct GameView: View {
                 giveUpButton
                 kanaDisplayField
             }
-            KanaKeyboard(
-                text: $input,
-                onSubmit: { attemptSubmit() },
-                canSubmit: !input.trimmingCharacters(in: .whitespaces).isEmpty && !isChecking
-            )
+            switch game.settings.kanaKeyboardStyle {
+            case .flick:
+                FlickKeyboard(
+                    text: $input,
+                    onSubmit: { attemptSubmit() },
+                    canSubmit: !input.trimmingCharacters(in: .whitespaces).isEmpty && !isChecking
+                )
+            case .grid:
+                KanaKeyboard(
+                    text: $input,
+                    onSubmit: { attemptSubmit() },
+                    canSubmit: !input.trimmingCharacters(in: .whitespaces).isEmpty && !isChecking
+                )
+            }
         }
     }
 

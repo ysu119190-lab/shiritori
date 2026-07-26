@@ -35,43 +35,10 @@ struct KanaKeyboard: View {
         [.char("わ"), .char("を"), .modifier, .backspace, .submit],
     ]
 
-    /// 濁点・半濁点・小書きの循環表。直前の文字をこの順で切り替える。
-    private static let modifierCycle: [Character: Character] = [
-        "あ": "ぁ", "ぁ": "あ",
-        "い": "ぃ", "ぃ": "い",
-        "う": "ぅ", "ぅ": "ゔ", "ゔ": "う",
-        "え": "ぇ", "ぇ": "え",
-        "お": "ぉ", "ぉ": "お",
-        "か": "が", "が": "か",
-        "き": "ぎ", "ぎ": "き",
-        "く": "ぐ", "ぐ": "く",
-        "け": "げ", "げ": "け",
-        "こ": "ご", "ご": "こ",
-        "さ": "ざ", "ざ": "さ",
-        "し": "じ", "じ": "し",
-        "す": "ず", "ず": "す",
-        "せ": "ぜ", "ぜ": "せ",
-        "そ": "ぞ", "ぞ": "そ",
-        "た": "だ", "だ": "た",
-        "ち": "ぢ", "ぢ": "ち",
-        "つ": "っ", "っ": "づ", "づ": "つ",
-        "て": "で", "で": "て",
-        "と": "ど", "ど": "と",
-        "は": "ば", "ば": "ぱ", "ぱ": "は",
-        "ひ": "び", "び": "ぴ", "ぴ": "ひ",
-        "ふ": "ぶ", "ぶ": "ぷ", "ぷ": "ふ",
-        "へ": "べ", "べ": "ぺ", "ぺ": "へ",
-        "ほ": "ぼ", "ぼ": "ぽ", "ぽ": "ほ",
-        "や": "ゃ", "ゃ": "や",
-        "ゆ": "ゅ", "ゅ": "ゆ",
-        "よ": "ょ", "ょ": "よ",
-        "わ": "ゎ", "ゎ": "わ",
-    ]
-
     /// 直前の文字が切り替え可能か。
     private var canModify: Bool {
         guard let last = text.last else { return false }
-        return Self.modifierCycle[last] != nil
+        return KanaUtils.modifierCycle[last] != nil
     }
 
     var body: some View {
@@ -140,7 +107,7 @@ struct KanaKeyboard: View {
 
     /// 末尾の文字を濁点・半濁点・小書きへ切り替える。
     private func applyModifier() {
-        guard let last = text.last, let next = Self.modifierCycle[last] else { return }
+        guard let last = text.last, let next = KanaUtils.modifierCycle[last] else { return }
         text.removeLast()
         text.append(next)
     }

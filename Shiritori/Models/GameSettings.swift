@@ -1,5 +1,11 @@
 import Foundation
 
+/// アプリ内かなキーボードの種類。
+enum KanaKeyboardStyle: String, Codable, CaseIterable {
+    case flick   // フリック入力
+    case grid    // 50音タップ
+}
+
 /// ゲームのルール設定。UserDefaults に保存され、次回起動時に復元される。
 struct GameSettings: Codable, Equatable {
 
@@ -41,6 +47,9 @@ struct GameSettings: Codable, Equatable {
     /// アプリ内のかなキーボードで入力するか（システムIMEの予測変換・変換候補を避ける）。
     var useKanaKeyboard: Bool
 
+    /// アプリ内かなキーボードの種類（フリック / 50音タップ）。
+    var kanaKeyboardStyle: KanaKeyboardStyle
+
     static let minPlayers = 2
     static let maxPlayers = 6
 
@@ -59,7 +68,8 @@ struct GameSettings: Codable, Equatable {
         turnTimeLimit: 0,
         allowChallengeOverride: true,
         isRandomLengthMode: false,
-        useKanaKeyboard: true
+        useKanaKeyboard: true,
+        kanaKeyboardStyle: .flick
     )
 
     /// 有効な設定へ丸める（人数・文字数の範囲を正す）。
@@ -126,5 +136,7 @@ extension GameSettings {
         // 新規フィールドは無い場合があるので decodeIfPresent で補完する。
         isRandomLengthMode = try c.decodeIfPresent(Bool.self, forKey: .isRandomLengthMode) ?? false
         useKanaKeyboard = try c.decodeIfPresent(Bool.self, forKey: .useKanaKeyboard) ?? false
+        // フリック入力を既定にする。
+        kanaKeyboardStyle = try c.decodeIfPresent(KanaKeyboardStyle.self, forKey: .kanaKeyboardStyle) ?? .flick
     }
 }
