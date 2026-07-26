@@ -135,7 +135,7 @@ struct GameView: View {
 
     /// ランダム文字数モードで、この手番のお題文字数を大きく見せるバッジ。
     private func lengthBadge(_ required: Int) -> some View {
-        Text("ちょうど \(required) 文字")
+        Label("ちょうど \(required) 文字", systemImage: "target")
             .font(.callout.bold())
             .foregroundStyle(playerColor)
             .padding(.horizontal, 14)
