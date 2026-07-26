@@ -8,6 +8,7 @@ struct Move: Identifiable, Equatable {
     let reading: String       // 判定に使った読み（ひらがな）
     let playerIndex: Int      // 打ったプレイヤー
     let acceptedByChallenge: Bool // 辞書に無いが参加者判断で認めた語か
+    let acceptedByWeb: Bool   // 辞書に無いが Wikipedia で見つかって認めた語か
 }
 
 /// 単語提出の判定結果。
@@ -53,10 +54,20 @@ final class ShiritoriGame: ObservableObject {
 
     private var usedReadings: Set<String> = []
     private let validator: WordValidator
+    private let webValidator: WebValidator
 
-    init(settings: GameSettings = .load()) {
+    init(settings: GameSettings = .load(), webValidator: WebValidator = WebValidator()) {
         self.settings = settings.sanitized()
         self.validator = WordValidator(useSystemDictionary: settings.useSystemDictionary)
+        self.webValidator = webValidator
+    }
+
+    /// 実在チェックでウェブ（Wikipedia）判定を使う状態か。
+    var isWebSearchEnabled: Bool { settings.checkExistence && settings.useWebSearch }
+
+    /// 読み（ひらがな）が Wikipedia に見つかるかを非同期で判定する。
+    func webExists(_ reading: String) async -> Bool {
+        await webValidator.exists(reading)
     }
 
     var bundledWordCount: Int { validator.bundledWordCount }
@@ -112,9 +123,11 @@ final class ShiritoriGame: ObservableObject {
 
     // MARK: - 単語の提出
 
-    /// 単語を提出する。`allowChallengeOverride` は辞書に無い語を承認して強制受理する場合に true。
+    /// 単語を提出する。
+    /// - `forceAcceptExistence`: 実在チェックを飛ばして受理する（承認またはウェブ判定OKのとき）。
+    /// - `acceptedViaWeb`: ウェブ（Wikipedia）判定で受理した場合は true。履歴のバッジ表示に使う。
     @discardableResult
-    func submit(_ rawInput: String, forceAcceptExistence: Bool = false) -> SubmitResult {
+    func submit(_ rawInput: String, forceAcceptExistence: Bool = false, acceptedViaWeb: Bool = false) -> SubmitResult {
         let reading = KanaUtils.normalize(rawInput)
 
         // 入力の基本チェック
@@ -156,14 +169,12 @@ final class ShiritoriGame: ObservableObject {
             }
         }
 
-        // 実在チェック（承認済みならスキップ）
+        // 実在チェック（承認・ウェブ判定OKならスキップ）。
+        // ローカル辞書で見つからない場合は .needsExistenceConfirmation を返し、
+        // ウェブ判定や参加者承認へ進むかは呼び出し側（View）が決める。
         if settings.checkExistence && !forceAcceptExistence {
             if !validator.exists(reading) {
-                if settings.allowChallengeOverride {
-                    return .needsExistenceConfirmation(reading: reading)
-                } else {
-                    return .rejected(reason: "「\(reading)」は辞書に見つかりませんでした")
-                }
+                return .needsExistenceConfirmation(reading: reading)
             }
         }
 
@@ -172,7 +183,8 @@ final class ShiritoriGame: ObservableObject {
             word: reading,
             reading: reading,
             playerIndex: currentPlayerIndex,
-            acceptedByChallenge: forceAcceptExistence
+            acceptedByChallenge: forceAcceptExistence && !acceptedViaWeb,
+            acceptedByWeb: acceptedViaWeb
         )
         history.append(move)
         usedReadings.insert(reading)

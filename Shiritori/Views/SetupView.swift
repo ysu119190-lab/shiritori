@@ -118,13 +118,14 @@ struct SetupView: View {
             Toggle("単語が実在するか自動判定", isOn: $game.settings.checkExistence)
             if game.settings.checkExistence {
                 Toggle("端末の国語辞書も使う", isOn: $game.settings.useSystemDictionary)
+                Toggle("ウェブ（Wikipedia）でも調べる", isOn: $game.settings.useWebSearch)
                 Toggle("辞書に無くても参加者が認めればOK", isOn: $game.settings.allowChallengeOverride)
             }
             Toggle("濁音・半濁音を区別しない", isOn: $game.settings.ignoreDakuten)
         } header: {
             Text("判定ルール")
         } footer: {
-            Text("「濁音・半濁音を区別しない」をオンにすると、例えば『か』の後に『が』から始まる語もつなげられます。")
+            Text("「ウェブ（Wikipedia）でも調べる」をオンにすると、辞書に無いキャラクター名や固有名詞でも、Wikipedia に記事があれば名詞として認めます（判定時にインターネット通信を行います）。")
         }
     }
 

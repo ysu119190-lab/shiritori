@@ -9,6 +9,7 @@ struct GameView: View {
     @State private var pendingReading: String?   // 実在確認待ちの語
     @State private var showGiveUpConfirm = false
     @State private var burstID: Int?             // 受理時のキラッと演出のトリガー
+    @State private var isChecking = false         // ウェブ（Wikipedia）確認中
     @FocusState private var inputFocused: Bool
 
     // 制限時間用タイマー（1秒間隔）。
@@ -226,7 +227,15 @@ struct GameView: View {
     private var inputBar: some View {
         VStack(spacing: 6) {
             HStack {
-                if let errorMessage {
+                if isChecking {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("確認中…")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .transition(.opacity)
+                } else if let errorMessage {
                     Text(errorMessage)
                         .font(.footnote)
                         .foregroundStyle(.red)
@@ -269,7 +278,7 @@ struct GameView: View {
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty || isChecking)
         }
     }
 
@@ -283,7 +292,7 @@ struct GameView: View {
             KanaKeyboard(
                 text: $input,
                 onSubmit: { attemptSubmit() },
-                canSubmit: !input.trimmingCharacters(in: .whitespaces).isEmpty
+                canSubmit: !input.trimmingCharacters(in: .whitespaces).isEmpty && !isChecking
             )
         }
     }
@@ -354,8 +363,44 @@ struct GameView: View {
     // MARK: - アクション
 
     private func attemptSubmit() {
+        guard !isChecking else { return }
         let result = game.submit(input)
-        handle(result)
+        if case .needsExistenceConfirmation(let reading) = result {
+            resolveExistence(reading)
+        } else {
+            handle(result)
+        }
+    }
+
+    /// ローカル辞書で見つからなかったとき、ウェブ判定→参加者承認の順に解決する。
+    private func resolveExistence(_ reading: String) {
+        guard game.isWebSearchEnabled else {
+            fallbackAfterMiss(reading, webTried: false)
+            return
+        }
+        isChecking = true
+        withAnimation { errorMessage = nil }
+        Task { @MainActor in
+            let found = await game.webExists(reading)
+            isChecking = false
+            // 確認中に時間切れ等で決着していたら何もしない。
+            guard game.phase == .playing else { return }
+            if found {
+                handle(game.submit(reading, forceAcceptExistence: true, acceptedViaWeb: true))
+            } else {
+                fallbackAfterMiss(reading, webTried: true)
+            }
+        }
+    }
+
+    /// 辞書・ウェブどちらでも見つからなかったときの後処理。
+    private func fallbackAfterMiss(_ reading: String, webTried: Bool) {
+        if game.settings.allowChallengeOverride {
+            pendingReading = reading
+        } else {
+            let source = webTried ? "辞書・ウェブ" : "辞書"
+            handle(.rejected(reason: "「\(reading)」は\(source)に見つかりませんでした"))
+        }
     }
 
     private func confirmExistence() {
@@ -433,7 +478,11 @@ private struct MoveRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if move.acceptedByChallenge {
+            if move.acceptedByWeb {
+                Label("ウェブ", systemImage: "globe")
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+            } else if move.acceptedByChallenge {
                 Label("承認", systemImage: "checkmark.seal")
                     .font(.caption2)
                     .foregroundStyle(.orange)
