@@ -21,6 +21,10 @@ struct GameSettings: Codable, Equatable {
     /// 端末の国語辞書も判定に使うか。
     var useSystemDictionary: Bool
 
+    /// 辞書に無い語を、日本語 Wikipedia でも判定するか。
+    /// オンにするとキャラクター名・固有名詞なども、記事があれば実在扱いになる。
+    var useWebSearch: Bool
+
     /// 濁音・半濁音を区別せずにつなぐか（例: 「か」の後に「が」から始まる語を許可）。
     var ignoreDakuten: Bool
 
@@ -50,6 +54,7 @@ struct GameSettings: Codable, Equatable {
         maxLength: 6,
         checkExistence: true,
         useSystemDictionary: true,
+        useWebSearch: true,
         ignoreDakuten: true,
         turnTimeLimit: 0,
         allowChallengeOverride: true,
@@ -114,6 +119,8 @@ extension GameSettings {
         checkExistence = try c.decode(Bool.self, forKey: .checkExistence)
         useSystemDictionary = try c.decode(Bool.self, forKey: .useSystemDictionary)
         ignoreDakuten = try c.decode(Bool.self, forKey: .ignoreDakuten)
+        // 既存の保存データに無い場合は既定オン（?? true）。
+        useWebSearch = try c.decodeIfPresent(Bool.self, forKey: .useWebSearch) ?? true
         turnTimeLimit = try c.decode(Int.self, forKey: .turnTimeLimit)
         allowChallengeOverride = try c.decode(Bool.self, forKey: .allowChallengeOverride)
         // 新規フィールドは無い場合があるので decodeIfPresent で補完する。
