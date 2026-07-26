@@ -230,7 +230,7 @@ struct GameView: View {
                 if isChecking {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text("ウェブで確認中…")
+                        Text("確認中…")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
