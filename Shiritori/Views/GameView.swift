@@ -29,7 +29,10 @@ struct GameView: View {
             inputBar
         }
         .tint(playerColor)
-        .onAppear { inputFocused = true }
+        .onAppear {
+            // かなキーボード使用時はシステムキーボードを出さない。
+            if !game.settings.useKanaKeyboard { inputFocused = true }
+        }
         .onReceive(ticker) { _ in tick() }
         .alert("辞書に見つかりません", isPresented: existenceAlertBinding) {
             Button("認めて続行") { confirmExistence() }
@@ -65,6 +68,10 @@ struct GameView: View {
                 if game.isTimed {
                     timerBadge
                 }
+            }
+
+            if let required = game.requiredLength {
+                lengthBadge(required)
             }
 
             kanaBadge
@@ -115,6 +122,22 @@ struct GameView: View {
             }
         }
         .animation(.spring(duration: 0.3), value: game.requiredStartKana)
+    }
+
+    /// ランダム文字数モードで、この手番のお題文字数を大きく見せるバッジ。
+    private func lengthBadge(_ required: Int) -> some View {
+        Label("ちょうど \(required) 文字", systemImage: "textformat.123")
+            .font(.callout.bold())
+            .foregroundStyle(playerColor)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(
+                Capsule().fill(playerColor.opacity(0.15))
+            )
+            .overlay(
+                Capsule().strokeBorder(playerColor.opacity(0.4), lineWidth: 1.5)
+            )
+            .animation(.spring(duration: 0.3), value: required)
     }
 
     private var timerBadge: some View {
@@ -200,43 +223,99 @@ struct GameView: View {
                     .foregroundStyle(charCountColor)
             }
 
-            HStack(spacing: 10) {
-                Button(role: .destructive) {
-                    Haptics.tap()
-                    showGiveUpConfirm = true
-                } label: {
-                    Image(systemName: "flag.fill")
-                        .font(.title3)
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.bordered)
-
-                TextField("ひらがなで入力", text: $input)
-                    .textFieldStyle(.roundedBorder)
-                    .submitLabel(.send)
-                    .focused($inputFocused)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .onSubmit { attemptSubmit() }
-
-                Button {
-                    attemptSubmit()
-                } label: {
-                    Image(systemName: "paperplane.fill")
-                        .font(.title3)
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty)
+            if game.settings.useKanaKeyboard {
+                kanaInputRow
+            } else {
+                systemInputRow
             }
         }
-        .padding()
+        .padding(game.settings.useKanaKeyboard ? .init(top: 8, leading: 8, bottom: 6, trailing: 8) : .init(top: 16, leading: 16, bottom: 16, trailing: 16))
         .background(.bar)
+    }
+
+    /// システムキーボード（TextField）を使う通常の入力行。
+    private var systemInputRow: some View {
+        HStack(spacing: 10) {
+            giveUpButton
+
+            TextField("ひらがなで入力", text: $input)
+                .textFieldStyle(.roundedBorder)
+                .submitLabel(.send)
+                .focused($inputFocused)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .onSubmit { attemptSubmit() }
+
+            Button {
+                attemptSubmit()
+            } label: {
+                Image(systemName: "paperplane.fill")
+                    .font(.title3)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+    }
+
+    /// アプリ内かなキーボードを使う入力（予測変換が出ない）。
+    private var kanaInputRow: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                giveUpButton
+                kanaDisplayField
+            }
+            KanaKeyboard(
+                text: $input,
+                onSubmit: { attemptSubmit() },
+                canSubmit: !input.trimmingCharacters(in: .whitespaces).isEmpty
+            )
+        }
+    }
+
+    /// かなキーボード入力時の、入力中テキストの表示欄。
+    private var kanaDisplayField: some View {
+        HStack {
+            if input.isEmpty {
+                Text("ここに文字が入ります")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(input)
+                    .font(.title3)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 44)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(playerColor.opacity(0.4), lineWidth: 1)
+        )
+    }
+
+    private var giveUpButton: some View {
+        Button(role: .destructive) {
+            Haptics.tap()
+            showGiveUpConfirm = true
+        } label: {
+            Image(systemName: "flag.fill")
+                .font(.title3)
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.bordered)
     }
 
     /// 入力中の文字数と制限の表示。
     private var charCountText: String {
         let count = KanaUtils.normalize(input).count
+        if let required = game.requiredLength {
+            return "\(count) / ちょうど\(required)文字"
+        }
         if game.settings.isMaxLengthEnabled {
             return "\(count) / \(game.settings.minLength)〜\(game.settings.maxLength)文字"
         } else {
@@ -247,6 +326,11 @@ struct GameView: View {
     private var charCountColor: Color {
         let count = KanaUtils.normalize(input).count
         guard count > 0 else { return .secondary }
+        if let required = game.requiredLength {
+            if count == required { return .green }
+            if count > required { return .red }
+            return .secondary
+        }
         if count < game.settings.minLength { return .secondary }
         if game.settings.isMaxLengthEnabled && count > game.settings.maxLength { return .red }
         return .green
@@ -272,7 +356,7 @@ struct GameView: View {
             Haptics.success()
             input = ""
             withAnimation { errorMessage = nil }
-            inputFocused = true
+            if !game.settings.useKanaKeyboard { inputFocused = true }
         case .gameOverByN:
             // 決着ハプティクスは finish() 側で発火。
             input = ""

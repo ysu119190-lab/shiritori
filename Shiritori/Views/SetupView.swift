@@ -9,6 +9,7 @@ struct SetupView: View {
             Form {
                 playersSection
                 lengthSection
+                inputSection
                 judgeSection
                 timeSection
                 infoSection
@@ -66,28 +67,47 @@ struct SetupView: View {
 
     private var lengthSection: some View {
         Section {
-            Stepper("最小: \(game.settings.minLength)文字", value: $game.settings.minLength, in: 1...10)
+            Toggle("ラリーごとにランダム文字数", isOn: $game.settings.isRandomLengthMode)
 
-            Toggle("最大文字数を制限する", isOn: $game.settings.isMaxLengthEnabled)
-            if game.settings.isMaxLengthEnabled {
-                Stepper(
-                    "最大: \(game.settings.maxLength)文字",
-                    value: $game.settings.maxLength,
-                    in: max(1, game.settings.minLength)...12
-                )
+            if !game.settings.isRandomLengthMode {
+                Stepper("最小: \(game.settings.minLength)文字", value: $game.settings.minLength, in: 1...10)
+
+                Toggle("最大文字数を制限する", isOn: $game.settings.isMaxLengthEnabled)
+                if game.settings.isMaxLengthEnabled {
+                    Stepper(
+                        "最大: \(game.settings.maxLength)文字",
+                        value: $game.settings.maxLength,
+                        in: max(1, game.settings.minLength)...12
+                    )
+                }
             }
         } header: {
-            Text("文字数制限")
+            Text("文字数")
         } footer: {
             Text(lengthFooter)
         }
     }
 
     private var lengthFooter: String {
+        if game.settings.isRandomLengthMode {
+            return "毎ターン、1〜9文字の中からお題の文字数がランダムに決まります。ちょうどその文字数の単語だけ使えます（最小・最大の設定は無視されます）。"
+        }
         if game.settings.isMaxLengthEnabled {
             return "\(game.settings.minLength)〜\(game.settings.maxLength)文字の単語だけ使えます。"
         } else {
             return "\(game.settings.minLength)文字以上の単語が使えます。"
+        }
+    }
+
+    // MARK: - 入力方法
+
+    private var inputSection: some View {
+        Section {
+            Toggle("アプリ内かなキーボードを使う", isOn: $game.settings.useKanaKeyboard)
+        } header: {
+            Text("入力方法")
+        } footer: {
+            Text("オンにすると、システムのキーボードの代わりにアプリ内の50音キーボードで入力します。予測変換や変換候補が出ないので、しりとりで次の手が読まれてしまうのを防げます。")
         }
     }
 
