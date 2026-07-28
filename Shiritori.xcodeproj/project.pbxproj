@@ -12,12 +12,18 @@
 
 /* Begin PBXFileReference section */
 		A1000001 /* Shiritori.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Shiritori.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1000006 /* ShiritoriTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ShiritoriTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A1000002 /* Shiritori */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Shiritori;
+			sourceTree = "<group>";
+		};
+		A1000007 /* ShiritoriTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ShiritoriTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -31,6 +37,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A1000014 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -38,6 +51,7 @@
 			isa = PBXGroup;
 			children = (
 				A1000002 /* Shiritori */,
+				A1000007 /* ShiritoriTests */,
 				A1000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -46,6 +60,7 @@
 			isa = PBXGroup;
 			children = (
 				A1000001 /* Shiritori.app */,
+				A1000006 /* ShiritoriTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -76,6 +91,29 @@
 			productReference = A1000001 /* Shiritori.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A1000022 /* ShiritoriTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1000034 /* Build configuration list for PBXNativeTarget "ShiritoriTests" */;
+			buildPhases = (
+				A1000013 /* Sources */,
+				A1000014 /* Frameworks */,
+				A1000015 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A1000070 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A1000007 /* ShiritoriTests */,
+			);
+			name = ShiritoriTests;
+			packageProductDependencies = (
+			);
+			productName = ShiritoriTests;
+			productReference = A1000006 /* ShiritoriTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -88,6 +126,10 @@
 				TargetAttributes = {
 					A1000020 = {
 						CreatedOnToolsVersion = 16.0;
+					};
+					A1000022 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = A1000020;
 					};
 				};
 			};
@@ -111,12 +153,38 @@
 			projectRoot = "";
 			targets = (
 				A1000020 /* Shiritori */,
+				A1000022 /* ShiritoriTests */,
 			);
 		};
 /* End PBXProject section */
 
+/* Begin PBXContainerItemProxy section */
+		A1000071 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000FF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A1000020;
+			remoteInfo = Shiritori;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		A1000070 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A1000020 /* Shiritori */;
+			targetProxy = A1000071 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin PBXResourcesBuildPhase section */
 		A1000012 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1000015 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -127,6 +195,13 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		A1000011 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1000013 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -305,6 +380,42 @@
 			};
 			name = Release;
 		};
+		A1000035 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.ysu119190-lab.mojitoriTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Shiritori.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Shiritori";
+			};
+			name = Debug;
+		};
+		A1000036 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.ysu119190-lab.mojitoriTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Shiritori.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Shiritori";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -322,6 +433,15 @@
 			buildConfigurations = (
 				A1000041 /* Debug */,
 				A1000042 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1000034 /* Build configuration list for PBXNativeTarget "ShiritoriTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000035 /* Debug */,
+				A1000036 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

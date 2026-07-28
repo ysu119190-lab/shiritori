@@ -40,7 +40,7 @@ struct GameSettings: Codable, Equatable {
     /// 辞書に無い単語でも、参加者が認めれば続行できるようにするか。
     var allowChallengeOverride: Bool
 
-    /// ラリー（手番）ごとにお題の文字数を 1〜9 文字でランダムに決めるモード。
+    /// ラリー（手番）ごとにお題の文字数を `randomLengthRange`（2〜9文字）でランダムに決めるモード。
     /// オンのときは minLength / maxLength ではなく「ちょうどN文字」で判定する。
     var isRandomLengthMode: Bool
 

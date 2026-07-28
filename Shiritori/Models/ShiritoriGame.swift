@@ -84,6 +84,28 @@ final class ShiritoriGame: ObservableObject {
 
     var isTimed: Bool { settings.turnTimeLimit > 0 }
 
+    /// つなげてよい開始音の候補。長音「ー」終わりの語は、直前のかなに加えて母音でも受理する。
+    private var acceptableStartKanas: [Character] {
+        guard let reading = history.last?.reading else {
+            return requiredStartKana.map { [$0] } ?? []
+        }
+        let options = KanaUtils.connectingKanaOptions(of: reading)
+        return options.isEmpty ? (requiredStartKana.map { [$0] } ?? []) : options
+    }
+
+    /// 「◯から始まる単語を…」の案内文。母音接続も許すときは両方の音を示す。
+    private var startHintMessage: String {
+        let options = acceptableStartKanas
+        if options.count >= 2 {
+            let list = options.map(String.init).joined(separator: "」か「")
+            return "「\(list)」から始まる単語を入力してください"
+        }
+        if let required = requiredStartKana {
+            return "「\(required)」から始まる単語を入力してください"
+        }
+        return "単語を入力してください"
+    }
+
     // MARK: - 進行制御
 
     /// 設定を確定してゲームを開始する。
@@ -125,7 +147,7 @@ final class ShiritoriGame: ObservableObject {
         requiredStartKana = KanaUtils.connectingKana(of: seed)
     }
 
-    /// ランダム文字数モードのとき、この手番のお題文字数を 1〜9 で決める。
+    /// ランダム文字数モードのとき、この手番のお題文字数を `GameSettings.randomLengthRange`（2〜9）で決める。
     /// 通常モードでは nil にする。
     private func rollRequiredLength() {
         requiredLength = settings.isRandomLengthMode
@@ -232,13 +254,16 @@ final class ShiritoriGame: ObservableObject {
             return .rejected(reason: "「\(reading)」はすでに使われています")
         }
 
-        // つながりチェック
-        if let required = requiredStartKana {
+        // つながりチェック（長音「ー」終わりは、直前のかな・その母音のどちらでも許容）。
+        if requiredStartKana != nil {
             guard let start = KanaUtils.startKana(of: reading) else {
-                return .rejected(reason: "「\(required)」から始まる単語を入力してください")
+                return .rejected(reason: startHintMessage)
             }
-            if !KanaUtils.connects(previousEnd: required, nextStart: start, ignoreDakuten: settings.ignoreDakuten) {
-                return .rejected(reason: "「\(required)」から始まる単語を入力してください")
+            let ok = acceptableStartKanas.contains {
+                KanaUtils.connects(previousEnd: $0, nextStart: start, ignoreDakuten: settings.ignoreDakuten)
+            }
+            if !ok {
+                return .rejected(reason: startHintMessage)
             }
         }
 
@@ -326,11 +351,21 @@ final class ShiritoriGame: ObservableObject {
     /// この手番でヒントを使った回数。
     @Published private(set) var hintCountThisTurn: Int = 0
 
+    /// 1手番で使えるヒントの上限。連打で答えを絞り込みすぎないための制限。
+    static let maxHintsPerTurn = 2
+
+    /// この手番でまだヒントを使えるか。
+    var canUseHint: Bool { hintCountThisTurn < Self.maxHintsPerTurn }
+
     /// ヒントを作る。答えそのものは出さず、「文字数」と「最後の音」だけ教える難しめのヒント。
     func requestHint() {
         guard phase == .playing else { return }
         guard let start = requiredStartKana else {
             hintText = "最初の単語は何でもOK。好きな言葉からどうぞ。"
+            return
+        }
+        guard canUseHint else {
+            hintText = "この手番のヒントはここまで。次の手番でまた使えます。"
             return
         }
         let candidate = validator.hintWord(

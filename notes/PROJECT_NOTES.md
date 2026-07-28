@@ -40,6 +40,9 @@ Shiritori/
     FlickKeyboard.swift     フリック入力
     Theme.swift             共通の見た目（背景・カード・ボタン・フォント）
   Resources/words.txt       同梱ひらがな辞書（約1,200語）
+ShiritoriTests/             ユニットテスト（XCTest, ホスト付き）
+  KanaUtilsTests.swift      かな正規化・接続判定
+  GameSettingsTests.swift   設定の丸め込み・後方互換デコード
 Info.plist                  実ファイル（AdMob のアプリID等）※同期グループ外
 Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 .github/workflows/
@@ -62,6 +65,9 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
   相手に読まれてしまうため。フリック入力と50音タップを設定で選べる（既定フリック）。
 - **かな判定ロジック**は `KanaUtils`。長音「ー」・小書き文字・濁音同一視・「ん」止まり・
   重複禁止に対応。
+- **長音「ー」で終わる語は、直前のかな・その母音の両方で接続を許す。**
+  例:「コーヒー」の次は「ひ」でも「い」でもOK（`connectingKanaOptions`）。
+  「長音は母音とみなす」流派との齟齬をなくすため。表示バッジは代表として直前のかなを出す。
 - **ゲーム開始時のお題はアプリが出題**（`isSeed`）。記録の語数 `chainCount` には数えない。
 - **`PointsStore` は @MainActor にしない。** 非 MainActor の `ShiritoriGame` から
   加算するため。呼び出しは実際にはすべてメインスレッド上。
@@ -78,7 +84,7 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 | 文字数ルール | 最小/最大の指定、または**ランダム文字数モード**（毎ターン2〜9文字ちょうど） |
 | 実在判定 | 同梱辞書 → 端末辞書 → Wikipedia → 参加者承認 |
 | 入力 | フリック入力 / 50音タップ（アプリ内・予測変換なし）、システムIMEも選択可 |
-| ヒント | 電球ボタン。答えは出さず「◯文字で、終わりの音は『◯』」だけ |
+| ヒント | 電球ボタン。答えは出さず「◯文字で、終わりの音は『◯』」だけ。**1手番2回まで** |
 | 中断と再開 | 「中断して保存」→ 設定画面から「続きから再開する」 |
 | しりとりポイント | 単語 +1 / 決着 +5 / 記録更新 +10。アイコン12種と交換（こうかん所） |
 | 演出 | 起動スプラッシュ、単語受理時のキラキラ、触覚フィードバック |
@@ -104,7 +110,8 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
   ブランチ push だけでは起動しない。
 - `concurrency` + `cancel-in-progress` で古い実行を自動キャンセル
   （macOS ランナーは無料枠を10倍消費するため）。
-- **シミュレータ機種名はハードコードしない** → `generic/platform=iOS Simulator`。
+- **シミュレータ機種名はハードコードしない** → `simctl` で利用可能な iPhone を動的に選び、
+  その UDID を宛先にして `xcodebuild test` を実行（ビルド検証とユニットテストを兼ねる）。
 - **Xcode バージョンは明示選択。**
 - CI 失敗はログ本文でなく **run の URL** を共有して追う。
 
@@ -146,7 +153,10 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
       新規発行するため、放置するとまた上限に達する。定期的に revoke するか、
       配布証明書＋プロファイル明示指定の方式に寄せるか要検討
       （ただし過去に不一致で失敗した経緯あり。やるなら慎重に）。
-- [ ] （任意）かな判定ロジックのユニットテストを追加し CI に組み込む。
+- [x] （任意）かな判定ロジックのユニットテストを追加し CI に組み込む — 完了(2026-07-28)。
+      `ShiritoriTests`（XCTest, ホスト付き）を追加し、`KanaUtils` と `GameSettings` を検証。
+      CI は `xcodebuild test` に変更（シミュレータは動的選択）。**この環境に Xcode が無く、
+      pbxproj/CI 変更は未コンパイル**なので、実際の緑は PR の CI で確認すること。
 - [ ] （任意）UI の実機調整（パステル背景の濃さ、ダークモードでの見え方）。
 - [ ] （任意）ポイントの獲得量・アイコン価格のバランス調整、オリジナル画像アイコン。
 - [ ] （任意）効果音 / 使った単語の共有 / 単語の意味リンク / iPad 表示最適化。

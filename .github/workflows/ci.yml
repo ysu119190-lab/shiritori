@@ -32,14 +32,31 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Build for iOS Simulator
+      - name: Pick an available iPhone simulator
+        id: sim
+        run: |
+          # 機種名はハードコードせず、ランタイムに存在する iPhone シミュレータを動的に選ぶ。
+          # （ランナーイメージ更新で機種が消えるため。過去の障害からの教訓）
+          UDID=$(xcrun simctl list devices available --json \
+            | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; ids=[x['udid'] for r in d for x in d[r] if x.get('isAvailable') and 'iPhone' in x['name']]; print(ids[0] if ids else '')")
+          if [ -z "$UDID" ]; then
+            echo "利用可能な iPhone シミュレータが見つかりません" >&2
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Using simulator $UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build & test on iOS Simulator
         run: |
           set -o pipefail
-          xcodebuild build \
+          # xcodebuild test はアプリ本体もテストホストとしてビルドするので、
+          # これ1本でコンパイル検証とユニットテストの両方を兼ねる。
+          xcodebuild test \
             -project Shiritori.xcodeproj \
             -scheme Shiritori \
             -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             CODE_SIGNING_ALLOWED=NO \
             | tee xcodebuild.log
 

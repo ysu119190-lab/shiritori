@@ -63,7 +63,8 @@ enum KanaUtils {
         "っ": "つ", "ゕ": "か", "ゖ": "け"
     ]
 
-    /// 各かなの母音（あ行の代表文字）を返すためのマップ。長音「ー」の直前の音を求める際に使う。
+    /// 各かなの母音（あ行の代表文字）を返すためのマップ。
+    /// 長音「ー」で終わる語を、母音でもつなげられるようにする際に使う（`connectingKanaOptions`）。
     static let vowelMap: [Character: Character] = {
         var map: [Character: Character] = [:]
         let rows: [(Character, String)] = [
@@ -136,26 +137,49 @@ enum KanaUtils {
         word.last == "ん"
     }
 
-    /// 次の単語がつながるべき音を返す。
-    /// - 長音「ー」で終わる場合は直前のかなの母音を採用。
-    /// - 小書き文字で終わる場合は大文字へ寄せる（例: 「しゃ」→「や」）。
+    /// 次の単語がつながるべき「基準の音」を1つ返す。
+    /// - 末尾の長音「ー」（および「〜」「～」）はスキップし、その手前の音を採用する
+    ///   （例:「コーヒー」→「ひ」、「スキー」→「き」）。
+    /// - 小書き文字は大文字へ寄せる（例:「しゃ」→「や」）。
+    ///
+    /// なお、長音終わりのときに母音でもつなげてよいかどうかは `connectingKanaOptions` が扱う。
     static func connectingKana(of word: String) -> Character? {
         let chars = Array(word)
         guard !chars.isEmpty else { return nil }
 
         var index = chars.count - 1
-        // 末尾の長音符をたどって、母音を採用する音を探す。
+        // 末尾の長音符をたどって、手前の実音まで戻る。
         while index >= 0 {
             let c = chars[index]
             if c == "ー" || c == "〜" || c == "～" {
                 index -= 1
                 continue
             }
-            // 小書き文字は大文字へ寄せてから母音判定にも使えるようにする。
+            // 小書き文字は大文字へ寄せる。
             let normalized = smallToLarge[c] ?? c
             return normalized
         }
         return nil
+    }
+
+    /// つなげてよい開始音の候補を返す。
+    /// 通常は `connectingKana` と同じ1音のみ。ただし語が長音「ー」で終わっている場合は、
+    /// 直前のかな（例:「コーヒー」→「ひ」）に加えて、その母音（「い」）でもつなげられるようにする。
+    /// 「長音は母音とみなす」流派にも配慮し、どちらの音から始めても受理する。
+    static func connectingKanaOptions(of word: String) -> [Character] {
+        guard let base = connectingKana(of: word) else { return [] }
+        guard endsWithProlongedMark(word),
+              let vowel = vowelMap[base], vowel != base
+        else {
+            return [base]
+        }
+        return [base, vowel]
+    }
+
+    /// 語が長音符（ー・〜・～）で終わっているか。
+    static func endsWithProlongedMark(_ word: String) -> Bool {
+        guard let last = word.last else { return false }
+        return last == "ー" || last == "〜" || last == "～"
     }
 
     /// マッチ判定に使うキーへ変換する。濁点無視オプションが有効なら清音へ寄せる。
