@@ -102,6 +102,14 @@
       アプリIDは `INFOPLIST_KEY_GADApplicationIdentifier` で注入（物理 Info.plist は作らず維持）。
       **現状は Google 公式のテストID**。実IDに差し替えるのは `AdConfig` の1箇所だけ。
       注意: 開発中に本番IDを使うと無効トラフィックでアカウント停止リスク。実IDはリリース直前に。
+- [x] ヒント機能を追加 — 完了(2026-07-26)。入力バーの電球ボタン。答えは出さず
+      「◯文字で、終わりの音は『◯』」だけ教える難しめの内容（ランダム文字数モードでは
+      文字数は既知なので終わりの音のみ）。`WordValidator.hintWord` で同梱辞書から候補を探す。
+- [x] しりとりポイント／アイコン交換を追加 — 完了(2026-07-26)。`PointsStore.swift`（UserDefaults）。
+      単語1つ +1、決着 +5、記録更新 +10。設定画面から「こうかん所」（`ShopView`）へ入り、
+      SF Symbols のアイコン12種をポイントで交換してプレイヤーごとに設定できる。
+      アイコンは設定画面のプレイヤー欄と対戦履歴に反映。
+      メモ: `PointsStore` は `ShiritoriGame`（非 MainActor）から加算するため @MainActor にしない。
 - [ ] 広告の本番ID差し替え（`AdConfig.productionInterstitialUnitID` と
       `INFOPLIST_KEY_GADApplicationIdentifier`）。あわせて SKAdNetworkItems を入れるなら
       物理 Info.plist 化が必要（配列は INFOPLIST_KEY_ では書けない）。

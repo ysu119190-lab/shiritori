@@ -36,6 +36,37 @@ final class WordValidator {
         return candidates.randomElement()
     }
 
+    /// ヒント用に、条件を満たす単語を同梱辞書から1つ選ぶ。
+    /// - Parameters:
+    ///   - startKana: この音から始まること。
+    ///   - ignoreDakuten: 濁点を区別せずにつなぐか。
+    ///   - exactLength: ちょうどこの文字数（ランダム文字数モード）。nil なら min/max で判定。
+    ///   - used: すでに使われた語（除外する）。
+    func hintWord(
+        startKana: Character,
+        ignoreDakuten: Bool,
+        exactLength: Int?,
+        minLength: Int,
+        maxLength: Int?,
+        used: Set<String>
+    ) -> String? {
+        let required = KanaUtils.matchKey(startKana, ignoreDakuten: ignoreDakuten)
+        let candidates = bundledDictionary.filter { word in
+            guard !used.contains(word) else { return false }
+            guard !KanaUtils.endsWithN(word) else { return false }
+            guard let first = KanaUtils.startKana(of: word) else { return false }
+            guard KanaUtils.matchKey(first, ignoreDakuten: ignoreDakuten) == required else { return false }
+            let count = word.count
+            if let exact = exactLength {
+                return count == exact
+            }
+            if count < minLength { return false }
+            if let maxLength, count > maxLength { return false }
+            return true
+        }
+        return candidates.randomElement()
+    }
+
     /// 指定した読み（ひらがな）が実在するか。
     func exists(_ hiraganaReading: String) -> Bool {
         if bundledDictionary.contains(hiraganaReading) {

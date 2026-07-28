@@ -55,6 +55,14 @@ struct ResultView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+
+                Label("しりとりポイント +\(game.chainCount * PointsStore.pointsPerWord + game.earnedPoints)", systemImage: "sparkle")
+                    .font(Theme.rounded(14, weight: .bold))
+                    .foregroundStyle(Theme.playerColor(3))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.playerColor(3).opacity(0.15)))
+                    .padding(.top, 2)
             }
 
             Spacer()

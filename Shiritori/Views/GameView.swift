@@ -257,6 +257,10 @@ struct GameView: View {
                     .foregroundStyle(charCountColor)
             }
 
+            if let hint = game.hintText {
+                hintBanner(hint)
+            }
+
             if game.settings.useKanaKeyboard {
                 kanaInputRow
             } else {
@@ -269,8 +273,9 @@ struct GameView: View {
 
     /// システムキーボード（TextField）を使う通常の入力行。
     private var systemInputRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             giveUpButton
+            hintButton
 
             TextField("ひらがなで入力", text: $input)
                 .textFieldStyle(.roundedBorder)
@@ -295,8 +300,9 @@ struct GameView: View {
     /// アプリ内かなキーボードを使う入力（予測変換が出ない）。
     private var kanaInputRow: some View {
         VStack(spacing: 6) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 giveUpButton
+                hintButton
                 kanaDisplayField
             }
             switch game.settings.kanaKeyboardStyle {
@@ -339,6 +345,43 @@ struct GameView: View {
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(playerColor.opacity(0.4), lineWidth: 1)
         )
+    }
+
+    /// ヒントの表示。
+    private func hintBanner(_ hint: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lightbulb.fill")
+                .foregroundStyle(.yellow)
+            Text(hint)
+                .font(Theme.rounded(14, weight: .bold))
+            Spacer()
+            Button {
+                Haptics.tap()
+                game.clearHint()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .cardStyle(cornerRadius: 12, tint: .yellow)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    /// ヒントを求めるボタン。
+    private var hintButton: some View {
+        Button {
+            Haptics.tap()
+            withAnimation(.spring(duration: 0.3)) { game.requestHint() }
+        } label: {
+            Image(systemName: "lightbulb.fill")
+                .font(.title3)
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.bordered)
+        .tint(.yellow)
     }
 
     private var giveUpButton: some View {
@@ -483,12 +526,22 @@ private struct MoveRow: View {
     let playerName: String
     let color: Color
 
+    /// 打ったプレイヤーが選んでいるアイコン。
+    private var iconName: String {
+        PointsStore.shared.iconID(forPlayer: move.playerIndex)
+    }
+
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Circle()
-                .fill(color)
-                .frame(width: 10, height: 10)
-                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.18))
+                    .frame(width: 30, height: 30)
+                Image(systemName: move.isSeed ? "flag.fill" : iconName)
+                    .font(.system(size: 14))
+                    .foregroundStyle(color)
+            }
+            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 8 }
             VStack(alignment: .leading, spacing: 2) {
                 Text(move.word)
                     .font(Theme.rounded(20, weight: .bold))

@@ -3,6 +3,7 @@ import SwiftUI
 /// 対戦前の設定画面。プレイヤー・文字数制限・判定ルールを決める。
 struct SetupView: View {
     @EnvironmentObject private var game: ShiritoriGame
+    @ObservedObject private var points = PointsStore.shared
 
     var body: some View {
         NavigationStack {
@@ -10,6 +11,7 @@ struct SetupView: View {
                 if game.hasSavedGame {
                     resumeSection
                 }
+                pointsSection
                 playersSection
                 lengthSection
                 inputSection
@@ -66,14 +68,42 @@ struct SetupView: View {
         }
     }
 
+    // MARK: - しりとりポイント
+
+    private var pointsSection: some View {
+        Section {
+            NavigationLink {
+                ShopView()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "sparkle")
+                        .font(.title3)
+                        .foregroundStyle(Theme.playerColor(3))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(points.points) ポイント")
+                            .font(Theme.rounded(16, weight: .bold))
+                        Text("アイコンと交換する")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } header: {
+            Text("しりとりポイント")
+        } footer: {
+            Text("遊ぶほどポイントが貯まります。単語が1つ通るたび +\(PointsStore.pointsPerWord)、決着で +\(PointsStore.finishBonus)、最長記録の更新で +\(PointsStore.recordBonus)。")
+        }
+    }
+
     // MARK: - プレイヤー
 
     private var playersSection: some View {
         Section {
             ForEach(game.settings.playerNames.indices, id: \.self) { index in
                 HStack {
-                    Image(systemName: "person.fill")
-                        .foregroundStyle(.secondary)
+                    Image(systemName: points.iconID(forPlayer: index))
+                        .foregroundStyle(Theme.playerColor(index))
+                        .frame(width: 22)
                     TextField("プレイヤー\(index + 1)", text: Binding(
                         get: { game.settings.playerNames[index] },
                         set: { game.settings.playerNames[index] = $0 }
@@ -230,7 +260,7 @@ struct SetupView: View {
             Haptics.tap()
             game.start()
             // 対戦画面へ切り替わってから広告を出す（頻度制限あり）。
-            Task {
+            Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 400_000_000)
                 AdManager.shared.show(.gameStart)
             }
