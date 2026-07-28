@@ -23,6 +23,19 @@ final class WordValidator {
     /// 同梱辞書の収録語数（設定画面などで表示する用）。
     var bundledWordCount: Int { bundledDictionary.count }
 
+    /// ゲーム開始時に出題する最初の単語をランダムに選ぶ。
+    /// 「ん」で終わる語や、次につなげられない語は除く。
+    func randomStartWord() -> String? {
+        let candidates = bundledDictionary.filter { word in
+            let count = word.count
+            guard count >= 2, count <= 5 else { return false }
+            guard !KanaUtils.endsWithN(word) else { return false }
+            // 次の音が取り出せない語（記号だけ等）は除外。
+            return KanaUtils.connectingKana(of: word) != nil
+        }
+        return candidates.randomElement()
+    }
+
     /// 指定した読み（ひらがな）が実在するか。
     func exists(_ hiraganaReading: String) -> Bool {
         if bundledDictionary.contains(hiraganaReading) {

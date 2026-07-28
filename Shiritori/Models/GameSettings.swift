@@ -54,7 +54,8 @@ struct GameSettings: Codable, Equatable {
     static let maxPlayers = 6
 
     /// ランダム文字数モードで使う文字数の範囲。
-    static let randomLengthRange = 1...9
+    /// 1文字は続けられる語がほぼ無く詰んでしまうため 2 文字から。
+    static let randomLengthRange = 2...9
 
     static let `default` = GameSettings(
         playerNames: ["プレイヤー1", "プレイヤー2"],

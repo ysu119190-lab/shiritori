@@ -2,13 +2,14 @@ import Foundation
 import SwiftUI
 
 /// 1手の記録。
-struct Move: Identifiable, Equatable {
-    let id = UUID()
+struct Move: Identifiable, Equatable, Codable {
+    var id = UUID()
     let word: String          // 入力された表示用の語（ひらがな）
     let reading: String       // 判定に使った読み（ひらがな）
-    let playerIndex: Int      // 打ったプレイヤー
+    let playerIndex: Int      // 打ったプレイヤー（お題の語は -1）
     let acceptedByChallenge: Bool // 辞書に無いが参加者判断で認めた語か
     let acceptedByWeb: Bool   // 辞書に無いが Wikipedia で見つかって認めた語か
+    var isSeed: Bool = false  // ゲーム開始時にアプリが出した最初の単語か
 }
 
 /// 単語提出の判定結果。
@@ -99,8 +100,26 @@ final class ShiritoriGame: ObservableObject {
         resultMessage = ""
         didSetNewRecord = false
         remainingTime = settings.turnTimeLimit
+        seedFirstWord()
         rollRequiredLength()
         phase = .playing
+        discardSavedGame()
+    }
+
+    /// 最初の単語をアプリ側が出題する。以降のプレイヤーはこの語に続けていく。
+    private func seedFirstWord() {
+        guard let seed = validator.randomStartWord() else { return }
+        let move = Move(
+            word: seed,
+            reading: seed,
+            playerIndex: -1,
+            acceptedByChallenge: false,
+            acceptedByWeb: false,
+            isSeed: true
+        )
+        history.append(move)
+        usedReadings.insert(seed)
+        requiredStartKana = KanaUtils.connectingKana(of: seed)
     }
 
     /// ランダム文字数モードのとき、この手番のお題文字数を 1〜9 で決める。
@@ -111,7 +130,7 @@ final class ShiritoriGame: ObservableObject {
             : nil
     }
 
-    /// 設定画面へ戻る。
+    /// 設定画面へ戻る（保存はしない）。
     func backToSetup() {
         phase = .setup
     }
@@ -120,6 +139,57 @@ final class ShiritoriGame: ObservableObject {
     func restart() {
         start()
     }
+
+    // MARK: - 中断と再開
+
+    /// 中断できる状態か（対戦中で、何か記録がある）。
+    var canSuspend: Bool { phase == .playing && !history.isEmpty }
+
+    /// 続きから再開できる保存データがあるか。
+    @Published private(set) var hasSavedGame: Bool = SavedGame.exists
+
+    /// 今の対戦を保存して設定画面へ戻る。
+    func suspendAndSave() {
+        guard phase == .playing else { return }
+        SavedGame(
+            settings: settings,
+            history: history,
+            currentPlayerIndex: currentPlayerIndex,
+            requiredStartKana: requiredStartKana.map(String.init),
+            requiredLength: requiredLength,
+            remainingTime: remainingTime,
+            savedAt: Date()
+        ).save()
+        hasSavedGame = true
+        phase = .setup
+    }
+
+    /// 保存しておいた対戦を復元して再開する。
+    func resumeSavedGame() {
+        guard let saved = SavedGame.load() else { return }
+        settings = saved.settings.sanitized()
+        validator.useSystemDictionary = settings.useSystemDictionary
+        history = saved.history
+        usedReadings = Set(saved.history.map(\.reading))
+        currentPlayerIndex = saved.currentPlayerIndex
+        requiredStartKana = saved.requiredStartKana?.first
+        requiredLength = saved.requiredLength
+        remainingTime = saved.remainingTime
+        loserIndex = nil
+        resultMessage = ""
+        didSetNewRecord = false
+        phase = .playing
+        discardSavedGame()
+    }
+
+    /// 保存データを捨てる。
+    func discardSavedGame() {
+        SavedGame.clear()
+        hasSavedGame = false
+    }
+
+    /// 保存データの概要（設定画面での表示用）。
+    var savedGameSummary: SavedGame? { SavedGame.load() }
 
     // MARK: - 単語の提出
 
@@ -224,10 +294,15 @@ final class ShiritoriGame: ObservableObject {
         loserIndex = loser
         resultMessage = message
         // 続いた単語数（＝最後の「ん」止まりの語も含む）を記録に反映。
-        didSetNewRecord = GameRecord.update(chain: history.count)
+        // アプリが出したお題の語は数えない。
+        didSetNewRecord = GameRecord.update(chain: chainCount)
         phase = .finished
+        discardSavedGame()
         Haptics.gameOver()
     }
+
+    /// プレイヤーが実際につないだ語数（お題の語は含めない）。
+    var chainCount: Int { history.filter { !$0.isSeed }.count }
 
     /// これまでの最長連鎖記録。
     var longestChainRecord: Int { GameRecord.longestChain }

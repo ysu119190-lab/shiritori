@@ -7,6 +7,9 @@ struct SetupView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if game.hasSavedGame {
+                    resumeSection
+                }
                 playersSection
                 lengthSection
                 inputSection
@@ -14,10 +17,52 @@ struct SetupView: View {
                 timeSection
                 infoSection
             }
+            .scrollContentBackground(.hidden)
+            .background(AppBackground())
             .navigationTitle("しりとり")
             .safeAreaInset(edge: .bottom) {
                 startButton
             }
+        }
+    }
+
+    // MARK: - 中断した対戦の再開
+
+    private var resumeSection: some View {
+        Section {
+            Button {
+                Haptics.tap()
+                game.resumeSavedGame()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "play.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(Theme.playerColor(0))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("続きから再開する")
+                            .font(Theme.rounded(16, weight: .bold))
+                            .foregroundStyle(.primary)
+                        if let saved = game.savedGameSummary {
+                            Text("\(saved.chainCount)語まで進行中")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                }
+            }
+
+            Button(role: .destructive) {
+                Haptics.tap()
+                game.discardSavedGame()
+            } label: {
+                Text("保存した対戦を削除")
+                    .font(.subheadline)
+            }
+        } header: {
+            Text("中断した対戦")
+        } footer: {
+            Text("前回「中断して保存」した対戦の続きから再開できます。新しく始めると保存データは消えます。")
         }
     }
 
@@ -182,15 +227,14 @@ struct SetupView: View {
 
     private var startButton: some View {
         Button {
+            Haptics.tap()
             game.start()
         } label: {
-            Text("ゲームを始める")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+            Label("ゲームを始める", systemImage: "sparkles")
         }
-        .buttonStyle(.borderedProminent)
-        .padding()
+        .buttonStyle(CuteButtonStyle(color: Theme.playerColor(0)))
+        .padding(.horizontal)
+        .padding(.vertical, 12)
         .background(.bar)
     }
 }
