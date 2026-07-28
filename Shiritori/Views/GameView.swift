@@ -382,6 +382,7 @@ struct GameView: View {
         }
         .buttonStyle(.bordered)
         .tint(.yellow)
+        .disabled(!game.canUseHint)
     }
 
     private var giveUpButton: some View {

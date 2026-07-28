@@ -165,7 +165,8 @@ struct SetupView: View {
 
     private var lengthFooter: String {
         if game.settings.isRandomLengthMode {
-            return "毎ターン、1〜9文字の中からお題の文字数がランダムに決まります。ちょうどその文字数の単語だけ使えます（最小・最大の設定は無視されます）。"
+            let r = GameSettings.randomLengthRange
+            return "毎ターン、\(r.lowerBound)〜\(r.upperBound)文字の中からお題の文字数がランダムに決まります。ちょうどその文字数の単語だけ使えます（最小・最大の設定は無視されます）。"
         }
         if game.settings.isMaxLengthEnabled {
             return "\(game.settings.minLength)〜\(game.settings.maxLength)文字の単語だけ使えます。"
