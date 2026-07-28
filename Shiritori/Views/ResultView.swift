@@ -55,6 +55,14 @@ struct ResultView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+
+                Label("しりとりポイント +\(game.chainCount * PointsStore.pointsPerWord + game.earnedPoints)", systemImage: "sparkle")
+                    .font(Theme.rounded(14, weight: .bold))
+                    .foregroundStyle(Theme.playerColor(3))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Theme.playerColor(3).opacity(0.15)))
+                    .padding(.top, 2)
             }
 
             Spacer()
@@ -80,6 +88,11 @@ struct ResultView: View {
         }
         .padding()
         .background(AppBackground())
+        .task {
+            // 決着画面が出そろってから広告を出す（頻度制限あり）。
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            AdManager.shared.show(.gameEnd)
+        }
     }
 }
 

@@ -99,6 +99,9 @@ final class ShiritoriGame: ObservableObject {
         loserIndex = nil
         resultMessage = ""
         didSetNewRecord = false
+        earnedPoints = 0
+        hintText = nil
+        hintCountThisTurn = 0
         remainingTime = settings.turnTimeLimit
         seedFirstWord()
         rollRequiredLength()
@@ -258,6 +261,8 @@ final class ShiritoriGame: ObservableObject {
         )
         history.append(move)
         usedReadings.insert(reading)
+        // 単語が1つ通るたびにしりとりポイントを獲得。
+        PointsStore.shared.award(PointsStore.pointsPerWord)
 
         // 「ん」止まりなら、この語は有効だが打った人の負け。
         if KanaUtils.endsWithN(reading) {
@@ -288,6 +293,8 @@ final class ShiritoriGame: ObservableObject {
         currentPlayerIndex = (currentPlayerIndex + 1) % players.count
         remainingTime = settings.turnTimeLimit
         rollRequiredLength()
+        hintText = nil
+        hintCountThisTurn = 0
     }
 
     private func finish(loser: Int, message: String) {
@@ -296,13 +303,61 @@ final class ShiritoriGame: ObservableObject {
         // 続いた単語数（＝最後の「ん」止まりの語も含む）を記録に反映。
         // アプリが出したお題の語は数えない。
         didSetNewRecord = GameRecord.update(chain: chainCount)
+
+        // 対戦をやり切ったボーナス。記録更新ならさらに上乗せ。
+        earnedPoints = PointsStore.finishBonus + (didSetNewRecord ? PointsStore.recordBonus : 0)
+        PointsStore.shared.award(earnedPoints)
+
         phase = .finished
         discardSavedGame()
         Haptics.gameOver()
     }
 
+    /// 決着時に獲得したボーナスポイント（結果画面の表示用）。
+    @Published private(set) var earnedPoints: Int = 0
+
     /// プレイヤーが実際につないだ語数（お題の語は含めない）。
     var chainCount: Int { history.filter { !$0.isSeed }.count }
+
+    // MARK: - ヒント
+
+    /// 直近のヒント文。表示中でなければ nil。
+    @Published var hintText: String? = nil
+    /// この手番でヒントを使った回数。
+    @Published private(set) var hintCountThisTurn: Int = 0
+
+    /// ヒントを作る。答えそのものは出さず、「文字数」と「最後の音」だけ教える難しめのヒント。
+    func requestHint() {
+        guard phase == .playing else { return }
+        guard let start = requiredStartKana else {
+            hintText = "最初の単語は何でもOK。好きな言葉からどうぞ。"
+            return
+        }
+        let candidate = validator.hintWord(
+            startKana: start,
+            ignoreDakuten: settings.ignoreDakuten,
+            exactLength: requiredLength,
+            minLength: settings.isRandomLengthMode ? 1 : settings.minLength,
+            maxLength: (!settings.isRandomLengthMode && settings.isMaxLengthEnabled) ? settings.maxLength : nil,
+            used: usedReadings
+        )
+        guard let candidate, let lastKana = candidate.last else {
+            hintText = "うーん、辞書の中には見つかりませんでした。自由に考えてみて！"
+            return
+        }
+        hintCountThisTurn += 1
+        // 難しめ：答えは伏せて、長さと終わりの音だけ。
+        if requiredLength != nil {
+            hintText = "終わりの音は「\(lastKana)」"
+        } else {
+            hintText = "\(candidate.count)文字で、終わりの音は「\(lastKana)」"
+        }
+    }
+
+    /// ヒント表示を消す。
+    func clearHint() {
+        hintText = nil
+    }
 
     /// これまでの最長連鎖記録。
     var longestChainRecord: Int { GameRecord.longestChain }
