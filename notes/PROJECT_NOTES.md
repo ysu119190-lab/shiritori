@@ -96,6 +96,15 @@
          「続きから再開する」。開始・決着時は保存データを破棄。
       ④ UI をパステル調に刷新（`Theme.swift`：共通背景 AppBackground・カード・丸ボタン、
          丸ゴシック体）。スプラッシュ背景を不透明にして設定画面が透けないよう修正。
+- [x] 全画面広告（AdMob）を追加 — 完了(2026-07-26)。起動時・ゲーム開始時・決着時の3箇所。
+      `AdManager.swift`（インタースティシャルの先読み＋表示）。**頻度制限60秒**で連続表示を防ぐ。
+      SDK は SPM（`swift-package-manager-google-mobile-ads` 12.x）を pbxproj に手書き追加。
+      アプリIDは `INFOPLIST_KEY_GADApplicationIdentifier` で注入（物理 Info.plist は作らず維持）。
+      **現状は Google 公式のテストID**。実IDに差し替えるのは `AdConfig` の1箇所だけ。
+      注意: 開発中に本番IDを使うと無効トラフィックでアカウント停止リスク。実IDはリリース直前に。
+- [ ] 広告の本番ID差し替え（`AdConfig.productionInterstitialUnitID` と
+      `INFOPLIST_KEY_GADApplicationIdentifier`）。あわせて SKAdNetworkItems を入れるなら
+      物理 Info.plist 化が必要（配列は INFOPLIST_KEY_ では書けない）。
 - [ ] （任意）かな判定ロジックのユニットテストを追加し CI に組み込む。
 - [ ] （任意）効果音 / 使った単語の共有 / 単語の意味リンク / iPad 表示最適化。
 - [ ] （任意）オンライン対戦（Game Center or MultipeerConnectivity）。開発者登録は加入済み。

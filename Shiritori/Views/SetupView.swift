@@ -229,6 +229,11 @@ struct SetupView: View {
         Button {
             Haptics.tap()
             game.start()
+            // 対戦画面へ切り替わってから広告を出す（頻度制限あり）。
+            Task {
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                AdManager.shared.show(.gameStart)
+            }
         } label: {
             Label("ゲームを始める", systemImage: "sparkles")
         }
