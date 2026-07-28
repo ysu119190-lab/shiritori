@@ -10,16 +10,14 @@ struct GameView: View {
     @State private var showGiveUpConfirm = false
     @State private var burstID: Int?             // 受理時のキラッと演出のトリガー
     @State private var isChecking = false         // ウェブ（Wikipedia）確認中
+    @State private var showExitOptions = false    // 中断メニュー
     @FocusState private var inputFocused: Bool
 
     // 制限時間用タイマー（1秒間隔）。
     private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    /// プレイヤーごとの差し色。
-    private static let playerColors: [Color] = [.pink, .blue, .green, .orange, .purple, .teal]
-
     private var playerColor: Color {
-        Self.playerColors[game.currentPlayerIndex % Self.playerColors.count]
+        Theme.playerColor(game.currentPlayerIndex)
     }
 
     var body: some View {
@@ -30,6 +28,7 @@ struct GameView: View {
             historyList
             inputBar
         }
+        .background(AppBackground())
         .overlay(alignment: .top) {
             if let id = burstID {
                 SparkleBurst(color: playerColor)
@@ -56,6 +55,16 @@ struct GameView: View {
         } message: {
             Text("\(game.currentPlayerName)さんの負けになります。")
         }
+        .confirmationDialog("対戦を中断しますか？", isPresented: $showExitOptions, titleVisibility: .visible) {
+            Button("中断して保存") {
+                Haptics.success()
+                game.suspendAndSave()
+            }
+            Button("保存せずに終了", role: .destructive) { game.backToSetup() }
+            Button("対戦を続ける", role: .cancel) {}
+        } message: {
+            Text("「中断して保存」なら、設定画面から続きを再開できます。")
+        }
     }
 
     // MARK: - ヘッダー
@@ -65,15 +74,15 @@ struct GameView: View {
             HStack {
                 Button {
                     Haptics.tap()
-                    game.backToSetup()
+                    showExitOptions = true
                 } label: {
-                    Label("設定", systemImage: "gearshape")
+                    Label("中断", systemImage: "pause.circle")
                         .labelStyle(.iconOnly)
-                        .font(.title3)
+                        .font(.title2)
                 }
                 Spacer()
-                Text("\(game.history.count) 語")
-                    .font(.subheadline.monospacedDigit())
+                Text("\(game.chainCount) 語")
+                    .font(Theme.rounded(15, weight: .bold).monospacedDigit())
                     .foregroundStyle(.secondary)
                 if game.isTimed {
                     timerBadge
@@ -86,13 +95,13 @@ struct GameView: View {
 
             kanaBadge
 
-            VStack(spacing: 2) {
+            VStack(spacing: 3) {
                 Text("\(game.currentPlayerName) さんの番")
-                    .font(.title3.bold())
+                    .font(Theme.rounded(20, weight: .bold))
                     .foregroundStyle(playerColor)
                 if let last = game.lastMove {
-                    Text("前の単語：\(last.word)")
-                        .font(.caption)
+                    Text(last.isSeed ? "お題：\(last.word)" : "前の単語：\(last.word)")
+                        .font(Theme.rounded(12))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -111,12 +120,13 @@ struct GameView: View {
                     Circle()
                         .strokeBorder(playerColor.opacity(0.5), lineWidth: 3)
                     Text(KanaUtils.displayKana(required))
-                        .font(.system(size: 56, weight: .heavy, design: .rounded))
+                        .font(Theme.title(58))
                         .foregroundStyle(playerColor)
                 }
                 .frame(width: 120, height: 120)
+                .shadow(color: playerColor.opacity(0.25), radius: 10, y: 4)
                 Text("この文字から始まる単語")
-                    .font(.subheadline)
+                    .font(Theme.rounded(14))
                     .foregroundStyle(.secondary)
             } else {
                 ZStack {
@@ -127,7 +137,7 @@ struct GameView: View {
                 }
                 .frame(width: 120, height: 120)
                 Text("最初の単語を自由に入力")
-                    .font(.subheadline)
+                    .font(Theme.rounded(14))
                     .foregroundStyle(.secondary)
             }
         }
@@ -195,7 +205,7 @@ struct GameView: View {
                         MoveRow(
                             move: move,
                             playerName: playerName(move.playerIndex),
-                            color: Self.playerColors[move.playerIndex % Self.playerColors.count]
+                            color: move.isSeed ? Theme.seedColor : Theme.playerColor(move.playerIndex)
                         )
                         .id(move.id)
                         .transition(.asymmetric(
@@ -481,13 +491,17 @@ private struct MoveRow: View {
                 .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
             VStack(alignment: .leading, spacing: 2) {
                 Text(move.word)
-                    .font(.title3.bold())
-                Text(playerName)
+                    .font(Theme.rounded(20, weight: .bold))
+                Text(move.isSeed ? "お題" : playerName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if move.acceptedByWeb {
+            if move.isSeed {
+                Label("スタート", systemImage: "flag.fill")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.seedColor)
+            } else if move.acceptedByWeb {
                 Label("ウェブ", systemImage: "globe")
                     .font(.caption2)
                     .foregroundStyle(.blue)
@@ -497,12 +511,9 @@ private struct MoveRow: View {
                     .foregroundStyle(.orange)
             }
         }
-        .padding(12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(color.opacity(0.08))
-        )
+        .cardStyle(cornerRadius: 16, tint: color)
     }
 }
 
