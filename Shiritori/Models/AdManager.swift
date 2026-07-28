@@ -29,6 +29,23 @@ enum AdConfig {
 
     /// 広告を出す最短間隔（秒）。短い対戦で広告が連続しないようにする。
     static let minimumInterval: TimeInterval = 60
+
+    /// Info.plist に設定されたアプリID。無ければ nil。
+    ///
+    /// Google Mobile Ads SDK はアプリIDが無い状態で初期化すると**例外を投げてアプリを落とす**。
+    /// ここで存在を確かめ、無ければ広告機能ごと無効にして、ゲームは普通に遊べるようにする。
+    static var applicationIdentifier: String? {
+        guard
+            let id = Bundle.main.object(forInfoDictionaryKey: "GADApplicationIdentifier") as? String,
+            id.hasPrefix("ca-app-pub-")
+        else {
+            return nil
+        }
+        return id
+    }
+
+    /// 広告を利用できる状態か。
+    static var isAvailable: Bool { applicationIdentifier != nil }
 }
 
 /// 全画面広告（インタースティシャル）の読み込みと表示をまとめて扱う。
@@ -54,13 +71,18 @@ final class AdManager: ObservableObject {
     private init() {}
 
     /// SDK を初期化して、最初の広告を読み込んでおく。
+    ///
+    /// アプリIDが未設定のときは SDK を初期化しない。初期化すると SDK 側が例外を投げて
+    /// アプリが落ちるため、広告だけ諦めてゲームは動かす。
     func start() {
+        guard AdConfig.isAvailable else { return }
         MobileAds.shared.start(completionHandler: nil)
         Task { await loadIfNeeded() }
     }
 
     /// 手持ちの広告が無ければ読み込む。
     func loadIfNeeded() async {
+        guard AdConfig.isAvailable else { return }
         guard interstitial == nil, !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
@@ -77,6 +99,7 @@ final class AdManager: ObservableObject {
 
     /// 条件を満たしていれば広告を表示する。出せないときは何もしない（ゲームは止めない）。
     func show(_ placement: Placement) {
+        guard AdConfig.isAvailable else { return }
         guard canShowNow else {
             Task { await loadIfNeeded() }
             return
