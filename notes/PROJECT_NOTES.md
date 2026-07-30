@@ -2,14 +2,15 @@
 
 このファイルを**単一の正**として扱う。セッション開始時にまず読み、作業後に更新する。
 
-最終更新: 2026-07-28
+最終更新: 2026-07-30
 
 ---
 
 ## 概要
 
-友達と同じ端末で交代しながら遊ぶ、しりとり iOS アプリ（SwiftUI）。
-対戦はパス＆プレイ（同一端末）。単語の実在判定でのみ外部通信する。
+友達と遊ぶ、しりとり iOS アプリ（SwiftUI）。
+対戦は**パス＆プレイ（同一端末）**と**オンライン対戦（Game Center・2人・ターン制）**の2通り。
+パス＆プレイでは単語の実在判定でのみ外部通信する。
 
 配信: TestFlight（Bundle ID `io.github.ysu119190-lab.mojitori`、表示名「しりとり」）
 
@@ -25,6 +26,8 @@ Shiritori/
     WordValidator.swift     同梱辞書＋端末辞書、お題/ヒント候補の抽出
     WebValidator.swift      日本語 Wikipedia でのタイトル完全一致判定
     SavedGame.swift         中断データの永続化
+    OnlineMatchState.swift  オンライン対戦で受け渡す状態＋オンライン用ルール調整
+    OnlineMatchManager.swift Game Center（GKTurnBasedMatch）の管理
     PointsStore.swift       しりとりポイント＋アイコン所持
     AdManager.swift         AdMob インタースティシャル（＋AdConfig）
     GameRecord.swift        最長記録
@@ -38,12 +41,15 @@ Shiritori/
     ShopView.swift          こうかん所（アイコン交換）
     KanaKeyboard.swift      50音タップ入力
     FlickKeyboard.swift     フリック入力
+    TurnBasedMatchmakerView.swift  Game Center 標準マッチメイキング画面のラッパ
     Theme.swift             共通の見た目（背景・カード・ボタン・フォント）
   Resources/words.txt       同梱ひらがな辞書（約1,200語）
 ShiritoriTests/             ユニットテスト（XCTest, ホスト付き）
   KanaUtilsTests.swift      かな正規化・接続判定
   GameSettingsTests.swift   設定の丸め込み・後方互換デコード
+  OnlineMatchStateTests.swift  オンライン状態の受け渡し・手番制御
 Info.plist                  実ファイル（AdMob のアプリID等）※同期グループ外
+Shiritori.entitlements      Game Center の entitlement ※同期グループ外
 Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 .github/workflows/
   ci.yml                    PR / main push で iOS ビルド検証
@@ -54,8 +60,25 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 
 ## 主要な設計判断
 
-- **対戦方式はパス＆プレイ（同一端末）。** オンライン対戦はサーバー基盤/Game Center が
-  必要で見送り。将来 Game Center や MultipeerConnectivity で拡張可能な構成にしてある。
+- **対戦方式はパス＆プレイ（同一端末）＋オンライン対戦（Game Center・2人）。**
+- **オンラインは `GKTurnBasedMatch`（非同期ターン制）を採用。** リアルタイム
+  （`GKMatch`）ではなくこちらにした理由:
+  - 対局データを Apple が預かるので**自前サーバーが不要**。
+  - 相手が同時にオンラインでなくても成立する。**新規アプリで「自動マッチングしても
+    誰もいない」問題を回避できる**のが決定的（対局が待機状態で残り、後から来た人と繋がる）。
+  - 手番が回ると Game Center が通知を出す（APNs の自前実装が不要）。
+  - 切断処理をほぼ書かなくてよい。
+- **オンラインの状態受け渡しは `OnlineMatchState`。** 中断保存（`SavedGame`）の
+  シリアライズ設計をそのまま流用できた（`Move` が既に `Codable` だった）。
+- **履歴は再判定しない。** 判定は常に「その語を出した本人の端末」で行い、結果を履歴に
+  焼き込む。だから端末間で辞書が違っても破綻しない。
+- **オンラインでは一部ルールを落とす**（`onlineSanitized()`）。
+  - 端末の国語辞書 → **不公平**（入れている辞書で結果が変わる）ので使わない。
+  - 参加者承認 → 相手に口頭確認できないので使わない。
+  - 秒単位の制限時間 → 非同期なので無意味。Game Center のターン制限（1週間）を使う。
+  - Wikipedia 判定は**残す**（上記のとおり判定者が一貫しているため問題にならない）。
+- **対局の受け取り口は `GKLocalPlayerListener` の1本に集約。**
+  マッチメイキング画面の「対局が選ばれた」デリゲートは**非推奨**なので使わない。
 - **単語の実在判定は4段構え。** ①同梱辞書 `words.txt` → ②端末の国語辞書
   （`UIReferenceLibraryViewController`）→ ③日本語 Wikipedia（タイトル完全一致）
   → ④参加者承認。①②で当たれば通信しないので、一般語は速い。
@@ -81,6 +104,7 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 | 機能 | 概要 |
 |---|---|
 | 基本のしりとり | 2〜6人のパス＆プレイ。重複・「ん」止まり・接続を判定 |
+| オンライン対戦 | Game Center で2人・ターン制（非同期）。友達招待＋自動マッチング |
 | 文字数ルール | 最小/最大の指定、または**ランダム文字数モード**（毎ターン2〜9文字ちょうど） |
 | 実在判定 | 同梱辞書 → 端末辞書 → Wikipedia → 参加者承認 |
 | 入力 | フリック入力 / 50音タップ（アプリ内・予測変換なし）、システムIMEも選択可 |
@@ -160,7 +184,22 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 - [ ] （任意）UI の実機調整（パステル背景の濃さ、ダークモードでの見え方）。
 - [ ] （任意）ポイントの獲得量・アイコン価格のバランス調整、オリジナル画像アイコン。
 - [ ] （任意）効果音 / 使った単語の共有 / 単語の意味リンク / iPad 表示最適化。
-- [ ] （任意）オンライン対戦（Game Center or MultipeerConnectivity）。開発者登録は加入済み。
+- [x] オンライン対戦の**第1段階**（Game Center・2人・ターン制）— 実装(2026-07-30)。
+      `GKTurnBasedMatch` 方式。**この環境に Xcode が無いためコンパイル未検証**で、
+      GameKit の API 利用と entitlement 追加は PR の CI で初めて検証される。
+      **実機での対局確認も未実施**（下記の手作業が必要）。
+- [ ] **オンライン対戦の実機確認**（ユーザーの手作業が必要）。
+      - App Store Connect でこのアプリの **Game Center を有効化**する。
+      - **サンドボックスの Game Center アカウント2つ**（実機2台、または実機＋別アカウント）が必要。
+        1人1台だと対局の両側を確認できない。
+      - 確認したいこと: サインイン → 招待で対局作成 → 相手に通知が届く → 交互に打てる →
+        「ん」止まり/降参で決着 → Game Center の対局一覧に結果が残る。
+- [ ] **オンライン対戦の第2段階以降**（第1段階の実機確認が終わってから）。
+      - 自動マッチングは標準UIに含まれているので**すでに動く経路はある**が、
+        プレイヤーが増えるまでは相手が見つからない。告知後に様子を見る。
+      - 3人以上のオンライン対戦、リアルタイム対戦は未着手。
+      - ResultView の「もう一度」がオンラインでは使えない（設定画面へ戻る動線のみ）。
+        同じ相手と続けて遊ぶ「リマッチ」は未実装。
 
 ---
 
@@ -175,6 +214,12 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
   （`GADApplicationIdentifier` 等）は反映されないことがあり、これが #9 のクラッシュ原因。
   必要なら実ファイルの Info.plist を用意する（配列値もこちらでないと書けない）。
   実ファイルは**同期グループの外**（リポジトリ直下）に置くとリソース二重コピーを避けられる。
+- **entitlements ファイルも同期グループの外（リポジトリ直下）に置く。**
+  Info.plist と同じ理由（`Shiritori/` 配下だとリソースとして二重に取り込まれる）。
+- **Game Center の entitlement を足すと署名の前提が変わる。** App ID 側でも Game Center を
+  有効にする必要がある。TestFlight ワークフローは自動署名（`-allowProvisioningUpdates`）
+  なので Xcode がプロファイルを作り直すが、**このリポジトリは署名で何度も詰まっている**ので
+  entitlement を触った回は TestFlight の Archive ログを必ず確認する。
 - **自動署名は証明書を使い切る。** Apple Development 証明書の発行上限に達すると
   `Choose a certificate to revoke.` で Archive が失敗する。Apple Developer の
   Certificates から古いものを revoke すれば復旧する。
