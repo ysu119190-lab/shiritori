@@ -189,6 +189,25 @@ final class OnlineGameTurnTests: XCTestCase {
         XCTAssertFalse(snapshot.isFinished)
     }
 
+    func testStartOnlineWaitingDoesNotSeedOrTakeTurn() {
+        // 招待されたが相手がまだ初手を打っていない状況。
+        // ここで出題して打ってしまうと Game Center 側に手番が無く送信が失敗するので、
+        // 出題せず待機状態にする。
+        let game = ShiritoriGame(settings: .default)
+        game.startOnlineWaiting(localSeat: 1, currentSeat: 0, playerNames: ["あいて", "じぶん"])
+
+        XCTAssertEqual(game.mode, .online)
+        XCTAssertEqual(game.phase, .playing)
+        XCTAssertTrue(game.history.isEmpty, "お題を出さない")
+        XCTAssertFalse(game.isMyTurn)
+        XCTAssertTrue(game.isWaitingForOpponent)
+
+        // 待機中は打てない。
+        guard case .rejected = game.submit("りんご") else {
+            return XCTFail("待機中は受理されないはず")
+        }
+    }
+
     func testLeaveOnlineMatchReturnsToSetup() {
         let game = makeGame(currentSeat: 1, localSeat: 1)
         game.leaveOnlineMatch()

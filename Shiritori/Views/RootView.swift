@@ -74,9 +74,17 @@ struct RootView: View {
                     playerNames: turn.playerNames,
                     isMatchEnded: turn.isMatchEnded
                 )
-            } else {
-                // matchData が空 ＝ 作られたばかりの対局。こちらがお題を出して始める。
+            } else if turn.isLocalTurn {
+                // matchData が空 ＝ まだ誰も打っていない対局。
+                // 手番がこちらにあるので、お題を出して始める。
                 currentGame.startOnline(localSeat: turn.localSeat, playerNames: turn.playerNames)
+            } else {
+                // 招待されたが、相手がまだ初手を打っていない。待機表示にする。
+                currentGame.startOnlineWaiting(
+                    localSeat: turn.localSeat,
+                    currentSeat: turn.currentSeat,
+                    playerNames: turn.playerNames
+                )
             }
         }
     }

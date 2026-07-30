@@ -11,6 +11,8 @@ struct OnlineTurn {
     let state: OnlineMatchState?
     /// この対局での自分の席番号。
     let localSeat: Int
+    /// いま手番の席番号。
+    let currentSeat: Int
     /// 席順のプレイヤー表示名。
     let playerNames: [String]
     /// いま自分の手番か。
@@ -206,6 +208,12 @@ final class OnlineMatchManager: NSObject, ObservableObject {
         return current.gamePlayerID == GKLocalPlayer.local.gamePlayerID
     }
 
+    /// いま手番の席番号。取れなければ 0。
+    private func currentSeat(in match: GKTurnBasedMatch) -> Int {
+        guard let current = match.currentParticipant else { return 0 }
+        return match.participants.firstIndex { $0 === current } ?? 0
+    }
+
     /// 手番を渡す相手。席番号から決められないときは自分以外の参加者に渡す。
     private func nextParticipants(for match: GKTurnBasedMatch, seat: Int) -> [GKTurnBasedParticipant] {
         if match.participants.indices.contains(seat) {
@@ -224,6 +232,7 @@ final class OnlineMatchManager: NSObject, ObservableObject {
             match: match,
             state: OnlineMatchState.decode(from: match.matchData),
             localSeat: localSeat(in: match),
+            currentSeat: currentSeat(in: match),
             playerNames: seatNames(for: match),
             isLocalTurn: isLocalTurn(in: match),
             isMatchEnded: isMatchEnded

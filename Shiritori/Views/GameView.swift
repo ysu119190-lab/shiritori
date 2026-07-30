@@ -152,7 +152,9 @@ struct GameView: View {
                         .foregroundStyle(playerColor)
                 }
                 .frame(width: 120, height: 120)
-                Text("最初の単語を自由に入力")
+                Text(game.isWaitingForOpponent
+                     ? "相手の最初の単語を待っています"
+                     : "最初の単語を自由に入力")
                     .font(Theme.rounded(14))
                     .foregroundStyle(.secondary)
             }

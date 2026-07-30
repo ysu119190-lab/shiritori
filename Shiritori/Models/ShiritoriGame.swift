@@ -225,6 +225,31 @@ final class ShiritoriGame: ObservableObject {
         phase = .playing
     }
 
+    /// 相手の初手を待つ状態でオンライン対局を開く。
+    ///
+    /// 招待された側が、相手がまだ1手も打っていない対局を開いたときに使う。
+    /// この場合こちらに手番は無いので、出題も入力もせず待機表示にする
+    /// （ここで出題して打ってしまうと Game Center 側で手番が無く送信に失敗する）。
+    func startOnlineWaiting(localSeat seat: Int, currentSeat: Int, playerNames names: [String]) {
+        mode = .online
+        localSeat = seat
+        applyOnlineSettings(settings, playerNames: names)
+
+        history.removeAll()
+        usedReadings.removeAll()
+        currentPlayerIndex = currentSeat
+        requiredStartKana = nil
+        requiredLength = nil
+        loserIndex = nil
+        resultMessage = ""
+        didSetNewRecord = false
+        earnedPoints = 0
+        hintText = nil
+        hintCountThisTurn = 0
+        remainingTime = 0
+        phase = .playing
+    }
+
     /// Game Center から届いた状態を反映する。
     ///
     /// 履歴は相手側で再判定しない（判定は常にその語を出した本人の端末で行う）ため、
