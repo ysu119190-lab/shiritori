@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Game Center（オンライン対戦）。この entitlement があると、署名時に
+	     App ID 側でも Game Center を有効にする必要がある。
+	     TestFlight ワークフローは自動署名（-allowProvisioningUpdates）なので、
+	     プロファイルは Xcode が作り直す。 -->
+	<key>com.apple.developer.game-center</key>
+	<true/>
+</dict>
+</plist>

@@ -68,21 +68,33 @@ struct ResultView: View {
             Spacer()
 
             VStack(spacing: 12) {
-                Button {
-                    Haptics.tap()
-                    game.restart()
-                } label: {
-                    Label("もう一度あそぶ", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(CuteButtonStyle(color: Theme.playerColor(0)))
+                if game.mode == .online {
+                    // オンライン対戦は同じ設定で即再開できないので、
+                    // 新しい対局は設定画面から作り直してもらう。
+                    Button {
+                        Haptics.tap()
+                        game.leaveOnlineMatch()
+                    } label: {
+                        Label("設定画面へもどる", systemImage: "house.fill")
+                    }
+                    .buttonStyle(CuteButtonStyle(color: Theme.playerColor(0)))
+                } else {
+                    Button {
+                        Haptics.tap()
+                        game.restart()
+                    } label: {
+                        Label("もう一度あそぶ", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(CuteButtonStyle(color: Theme.playerColor(0)))
 
-                Button {
-                    Haptics.tap()
-                    game.backToSetup()
-                } label: {
-                    Text("設定を変える")
+                    Button {
+                        Haptics.tap()
+                        game.backToSetup()
+                    } label: {
+                        Text("設定を変える")
+                    }
+                    .buttonStyle(CuteButtonStyle(color: Theme.playerColor(1), filled: false))
                 }
-                .buttonStyle(CuteButtonStyle(color: Theme.playerColor(1), filled: false))
             }
             .padding(.horizontal)
         }

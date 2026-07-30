@@ -55,15 +55,26 @@ struct GameView: View {
         } message: {
             Text("\(game.currentPlayerName)さんの負けになります。")
         }
-        .confirmationDialog("対戦を中断しますか？", isPresented: $showExitOptions, titleVisibility: .visible) {
-            Button("中断して保存") {
-                Haptics.success()
-                game.suspendAndSave()
+        .confirmationDialog(
+            game.mode == .online ? "対局から離れますか？" : "対戦を中断しますか？",
+            isPresented: $showExitOptions,
+            titleVisibility: .visible
+        ) {
+            if game.mode == .online {
+                Button("対局から離れる") { game.leaveOnlineMatch() }
+                Button("対局を続ける", role: .cancel) {}
+            } else {
+                Button("中断して保存") {
+                    Haptics.success()
+                    game.suspendAndSave()
+                }
+                Button("保存せずに終了", role: .destructive) { game.backToSetup() }
+                Button("対戦を続ける", role: .cancel) {}
             }
-            Button("保存せずに終了", role: .destructive) { game.backToSetup() }
-            Button("対戦を続ける", role: .cancel) {}
         } message: {
-            Text("「中断して保存」なら、設定画面から続きを再開できます。")
+            Text(game.mode == .online
+                 ? "対局は Game Center に残ります。「オンラインで対戦する」から開き直せます。"
+                 : "「中断して保存」なら、設定画面から続きを再開できます。")
         }
     }
 
@@ -81,6 +92,11 @@ struct GameView: View {
                         .font(.title2)
                 }
                 Spacer()
+                if game.mode == .online {
+                    Image(systemName: "person.2.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Text("\(game.chainCount) 語")
                     .font(Theme.rounded(15, weight: .bold).monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -236,6 +252,36 @@ struct GameView: View {
 
     private var inputBar: some View {
         VStack(spacing: 6) {
+            if game.isWaitingForOpponent {
+                waitingBanner
+            } else {
+                activeInputBar
+            }
+        }
+        .padding(game.settings.useKanaKeyboard && !game.isWaitingForOpponent
+                 ? .init(top: 8, leading: 8, bottom: 6, trailing: 8)
+                 : .init(top: 16, leading: 16, bottom: 16, trailing: 16))
+        .background(.bar)
+    }
+
+    /// オンライン対戦で相手の手を待っているときの表示。
+    private var waitingBanner: some View {
+        HStack(spacing: 10) {
+            ProgressView().controlSize(.small)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(game.opponentName) さんの番です")
+                    .font(Theme.rounded(15, weight: .bold))
+                Text("手番が回ってくると通知が届きます。アプリを閉じても大丈夫です。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var activeInputBar: some View {
+        VStack(spacing: 6) {
             HStack {
                 if isChecking {
                     HStack(spacing: 6) {
@@ -267,8 +313,6 @@ struct GameView: View {
                 systemInputRow
             }
         }
-        .padding(game.settings.useKanaKeyboard ? .init(top: 8, leading: 8, bottom: 6, trailing: 8) : .init(top: 16, leading: 16, bottom: 16, trailing: 16))
-        .background(.bar)
     }
 
     /// システムキーボード（TextField）を使う通常の入力行。

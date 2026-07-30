@@ -27,11 +27,27 @@ enum GamePhase: Equatable {
     case finished  // 決着
 }
 
+/// 対戦の方式。
+enum GameMode: Equatable {
+    case passAndPlay  // 同一端末で交代しながら遊ぶ
+    case online       // Game Center のオンライン対戦（2人・ターン制）
+}
+
 /// しりとりの進行を管理する中心オブジェクト。
 final class ShiritoriGame: ObservableObject {
 
     @Published var settings: GameSettings
     @Published private(set) var phase: GamePhase = .setup
+
+    /// 対戦方式。既定はパス＆プレイ。
+    @Published private(set) var mode: GameMode = .passAndPlay
+
+    /// オンライン対戦での自分の席番号（`GKTurnBasedMatch.participants` の並び順）。
+    @Published private(set) var localSeat: Int = 0
+
+    /// オンライン対戦で自分の手を送るための受け口。RootView が差し込む。
+    /// 引数は「送る状態」と「これで決着したか」。
+    var onlineTurnSender: ((OnlineMatchState, Bool) -> Void)?
 
     @Published private(set) var history: [Move] = []
     @Published private(set) var currentPlayerIndex: Int = 0
@@ -84,6 +100,22 @@ final class ShiritoriGame: ObservableObject {
 
     var isTimed: Bool { settings.turnTimeLimit > 0 }
 
+    /// いま自分が入力してよいか。パス＆プレイでは常に true。
+    var isMyTurn: Bool {
+        mode == .passAndPlay || currentPlayerIndex == localSeat
+    }
+
+    /// オンライン対戦で相手の手を待っているか。
+    var isWaitingForOpponent: Bool {
+        mode == .online && phase == .playing && !isMyTurn
+    }
+
+    /// 相手（オンライン対戦での自分以外）の名前。
+    var opponentName: String {
+        let seat = localSeat == 0 ? 1 : 0
+        return players.indices.contains(seat) ? players[seat] : ""
+    }
+
     /// つなげてよい開始音の候補。長音「ー」終わりの語は、直前のかなに加えて母音でも受理する。
     private var acceptableStartKanas: [Character] {
         guard let reading = history.last?.reading else {
@@ -108,8 +140,10 @@ final class ShiritoriGame: ObservableObject {
 
     // MARK: - 進行制御
 
-    /// 設定を確定してゲームを開始する。
+    /// 設定を確定してゲームを開始する（パス＆プレイ）。
     func start() {
+        mode = .passAndPlay
+        localSeat = 0
         settings = settings.sanitized()
         settings.save()
         validator.useSystemDictionary = settings.useSystemDictionary
@@ -165,17 +199,127 @@ final class ShiritoriGame: ObservableObject {
         start()
     }
 
+    // MARK: - オンライン対戦
+
+    /// オンライン対戦を開始する（新規対局。お題はこちら側で出題する）。
+    ///
+    /// 対局を作った側が最初の手番になるので、手番は自分の席から始める。
+    func startOnline(localSeat seat: Int, playerNames names: [String]) {
+        mode = .online
+        localSeat = seat
+        applyOnlineSettings(settings, playerNames: names)
+
+        history.removeAll()
+        usedReadings.removeAll()
+        currentPlayerIndex = seat
+        requiredStartKana = nil
+        loserIndex = nil
+        resultMessage = ""
+        didSetNewRecord = false
+        earnedPoints = 0
+        hintText = nil
+        hintCountThisTurn = 0
+        remainingTime = 0
+        seedFirstWord()
+        rollRequiredLength()
+        phase = .playing
+    }
+
+    /// Game Center から届いた状態を反映する。
+    ///
+    /// 履歴は相手側で再判定しない（判定は常にその語を出した本人の端末で行う）ため、
+    /// 届いた履歴はそのまま正として受け入れる。
+    func applyOnlineState(_ state: OnlineMatchState, localSeat seat: Int, playerNames names: [String], isMatchEnded: Bool) {
+        mode = .online
+        localSeat = seat
+        applyOnlineSettings(state.settings, playerNames: names)
+
+        history = state.history
+        usedReadings = Set(state.history.map(\.reading))
+        currentPlayerIndex = state.currentSeat
+        requiredStartKana = state.requiredStartKana?.first
+        requiredLength = state.requiredLength
+        remainingTime = 0
+        hintText = nil
+        hintCountThisTurn = 0
+
+        guard isMatchEnded || state.isFinished else {
+            loserIndex = nil
+            resultMessage = ""
+            phase = .playing
+            return
+        }
+
+        // すでに自分の端末で決着処理を済ませていれば、ポイントの二重加算を避ける。
+        guard phase != .finished else { return }
+
+        loserIndex = state.loserSeat
+        resultMessage = state.resultMessage
+        didSetNewRecord = GameRecord.update(chain: chainCount)
+        earnedPoints = PointsStore.finishBonus + (didSetNewRecord ? PointsStore.recordBonus : 0)
+        PointsStore.shared.award(earnedPoints)
+        phase = .finished
+        Haptics.gameOver()
+    }
+
+    /// オンライン対戦の設定と名前をそろえる。
+    private func applyOnlineSettings(_ base: GameSettings, playerNames names: [String]) {
+        var s = base.onlineSanitized()
+        s.playerNames = Self.onlineNames(names)
+        settings = s
+        validator.useSystemDictionary = false
+    }
+
+    /// 席順の名前を2人ぶんにそろえる。
+    private static func onlineNames(_ names: [String]) -> [String] {
+        var result = names.prefix(OnlineMatchState.playerCount).map { name -> String in
+            let trimmed = name.trimmingCharacters(in: .whitespaces)
+            return trimmed.isEmpty ? "あいて" : trimmed
+        }
+        while result.count < OnlineMatchState.playerCount {
+            result.append("あいて")
+        }
+        return result
+    }
+
+    /// オンライン対局から離れて設定画面へ戻る（対局は Game Center 側に残る）。
+    func leaveOnlineMatch() {
+        mode = .passAndPlay
+        localSeat = 0
+        phase = .setup
+    }
+
+    /// いまの進行状況を、相手へ渡す形式で書き出す。
+    func onlineStateSnapshot() -> OnlineMatchState {
+        OnlineMatchState(
+            settings: settings,
+            history: history,
+            currentSeat: currentPlayerIndex,
+            requiredStartKana: requiredStartKana.map(String.init),
+            requiredLength: requiredLength,
+            loserSeat: loserIndex,
+            resultMessage: resultMessage
+        )
+    }
+
+    /// オンライン対戦なら、いまの状態を相手へ送る。
+    private func sendOnlineTurnIfNeeded(isGameOver: Bool) {
+        guard mode == .online else { return }
+        onlineTurnSender?(onlineStateSnapshot(), isGameOver)
+    }
+
     // MARK: - 中断と再開
 
-    /// 中断できる状態か（対戦中で、何か記録がある）。
-    var canSuspend: Bool { phase == .playing && !history.isEmpty }
+    /// 中断できる状態か（パス＆プレイの対戦中で、何か記録がある）。
+    /// オンライン対戦は Game Center 側が対局を預かるので、この仕組みは使わない。
+    var canSuspend: Bool { mode == .passAndPlay && phase == .playing && !history.isEmpty }
 
     /// 続きから再開できる保存データがあるか。
     @Published private(set) var hasSavedGame: Bool = SavedGame.exists
 
     /// 今の対戦を保存して設定画面へ戻る。
     func suspendAndSave() {
-        guard phase == .playing else { return }
+        guard canSuspend else { return }
         SavedGame(
             settings: settings,
             history: history,
@@ -192,6 +336,8 @@ final class ShiritoriGame: ObservableObject {
     /// 保存しておいた対戦を復元して再開する。
     func resumeSavedGame() {
         guard let saved = SavedGame.load() else { return }
+        mode = .passAndPlay
+        localSeat = 0
         settings = saved.settings.sanitized()
         validator.useSystemDictionary = settings.useSystemDictionary
         history = saved.history
@@ -223,6 +369,11 @@ final class ShiritoriGame: ObservableObject {
     /// - `acceptedViaWeb`: ウェブ（Wikipedia）判定で受理した場合は true。履歴のバッジ表示に使う。
     @discardableResult
     func submit(_ rawInput: String, forceAcceptExistence: Bool = false, acceptedViaWeb: Bool = false) -> SubmitResult {
+        // オンライン対戦では自分の手番のときだけ打てる。
+        guard isMyTurn else {
+            return .rejected(reason: "\(opponentName)さんの番です")
+        }
+
         let reading = KanaUtils.normalize(rawInput)
 
         // 入力の基本チェック
@@ -291,19 +442,25 @@ final class ShiritoriGame: ObservableObject {
 
         // 「ん」止まりなら、この語は有効だが打った人の負け。
         if KanaUtils.endsWithN(reading) {
-            finish(loser: currentPlayerIndex, message: "「\(reading)」は『ん』で終わりました")
-            return .gameOverByN(loser: currentPlayerIndex)
+            let loser = currentPlayerIndex
+            finish(loser: loser, message: "「\(reading)」は『ん』で終わりました")
+            sendOnlineTurnIfNeeded(isGameOver: true)
+            return .gameOverByN(loser: loser)
         }
 
         // 次のプレイヤーへ
         requiredStartKana = KanaUtils.connectingKana(of: reading)
         advanceTurn()
+        sendOnlineTurnIfNeeded(isGameOver: false)
         return .accepted
     }
 
     /// 手番のプレイヤーが降参する。
     func giveUp() {
+        // オンライン対戦では自分の手番でないと対局を終了できない。
+        guard isMyTurn else { return }
         finish(loser: currentPlayerIndex, message: "\(currentPlayerName)さんが降参しました")
+        sendOnlineTurnIfNeeded(isGameOver: true)
     }
 
     /// 制限時間切れ。手番のプレイヤーの負け。

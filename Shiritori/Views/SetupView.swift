@@ -4,6 +4,7 @@ import SwiftUI
 struct SetupView: View {
     @EnvironmentObject private var game: ShiritoriGame
     @ObservedObject private var points = PointsStore.shared
+    @ObservedObject private var online = OnlineMatchManager.shared
 
     var body: some View {
         NavigationStack {
@@ -11,6 +12,7 @@ struct SetupView: View {
                 if game.hasSavedGame {
                     resumeSection
                 }
+                onlineSection
                 pointsSection
                 playersSection
                 lengthSection
@@ -65,6 +67,45 @@ struct SetupView: View {
             Text("中断した対戦")
         } footer: {
             Text("前回「中断して保存」した対戦の続きから再開できます。新しく始めると保存データは消えます。")
+        }
+    }
+
+    // MARK: - オンライン対戦
+
+    private var onlineSection: some View {
+        Section {
+            Button {
+                Haptics.tap()
+                online.presentMatchmaker()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.2.fill")
+                        .font(.title3)
+                        .foregroundStyle(Theme.playerColor(2))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("オンラインで対戦する")
+                            .font(Theme.rounded(16, weight: .bold))
+                            .foregroundStyle(.primary)
+                        Text(online.isAuthenticated
+                             ? "友達を招待する / 進行中の対局を開く"
+                             : "Game Center へのサインインが必要です")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+            }
+            .disabled(!online.isAuthenticated)
+
+            if let status = online.statusMessage {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        } header: {
+            Text("オンライン対戦（2人）")
+        } footer: {
+            Text("Game Center を使った2人のターン制対戦です。相手が同時にオンラインでなくても成立し、手番が回ってくると通知が届きます。オンライン対戦では「端末の国語辞書」と「参加者が認めればOK」は使いません（端末ごとに判定が変わって不公平になるため）。文字数などのルールは対局を作った側の設定が使われます。")
         }
     }
 
