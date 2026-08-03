@@ -23,6 +23,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 
+	<!-- 標準的なHTTPS通信のみで独自暗号は使っていない（輸出規制の対象外）。
+	     これにより TestFlight/App Store 提出時の輸出コンプライアンス質問が省略される。 -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
 	<!-- AdMob のアプリID。これが無いと SDK が例外を投げてアプリが落ちる。
 	     いまは Google 公式のテスト用アプリID。 -->
 	<key>GADApplicationIdentifier</key>
