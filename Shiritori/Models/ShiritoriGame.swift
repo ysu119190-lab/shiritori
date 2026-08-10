@@ -147,12 +147,16 @@ final class ShiritoriGame: ObservableObject {
         requiredStartKana = KanaUtils.connectingKana(of: seed)
     }
 
-    /// ランダム文字数モードのとき、この手番のお題文字数を `GameSettings.randomLengthRange`（2〜9）で決める。
+    /// ランダム文字数モードのとき、この手番のお題文字数を設定の幅（randomLengthMin〜Max）で決める。
     /// 通常モードでは nil にする。
     private func rollRequiredLength() {
-        requiredLength = settings.isRandomLengthMode
-            ? Int.random(in: GameSettings.randomLengthRange)
-            : nil
+        guard settings.isRandomLengthMode else {
+            requiredLength = nil
+            return
+        }
+        let lo = min(settings.randomLengthMin, settings.randomLengthMax)
+        let hi = max(settings.randomLengthMin, settings.randomLengthMax)
+        requiredLength = Int.random(in: lo...hi)
     }
 
     /// 設定画面へ戻る（保存はしない）。

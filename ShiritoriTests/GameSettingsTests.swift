@@ -62,9 +62,30 @@ final class GameSettingsTests: XCTestCase {
         XCTAssertEqual(decoded.kanaKeyboardStyle, .flick)   // ?? .flick
     }
 
-    func testRandomLengthRange() {
-        // 表示文言と実際の挙動がずれないよう、範囲を固定して確認する。
-        XCTAssertEqual(GameSettings.randomLengthRange.lowerBound, 2)
-        XCTAssertEqual(GameSettings.randomLengthRange.upperBound, 9)
+    func testRandomLengthBounds() {
+        // 設定できる上下限を固定して確認する。
+        XCTAssertEqual(GameSettings.randomLengthBounds.lowerBound, 2)
+        XCTAssertEqual(GameSettings.randomLengthBounds.upperBound, 9)
+    }
+
+    func testRandomLengthDefaults() {
+        // 既定はランダム文字数の幅いっぱい（2〜9）。
+        XCTAssertEqual(GameSettings.default.randomLengthMin, 2)
+        XCTAssertEqual(GameSettings.default.randomLengthMax, 9)
+    }
+
+    func testRandomLengthSanitizeClampsAndOrders() {
+        var s = GameSettings.default
+        // 上下限を超えた値と、min > max の逆転を丸める。
+        s.randomLengthMin = 0    // 下限 2 未満
+        s.randomLengthMax = 20   // 上限 9 超過
+        var t = s.sanitized()
+        XCTAssertEqual(t.randomLengthMin, 2)
+        XCTAssertEqual(t.randomLengthMax, 9)
+
+        s.randomLengthMin = 8
+        s.randomLengthMax = 4    // min > max
+        t = s.sanitized()
+        XCTAssertLessThanOrEqual(t.randomLengthMin, t.randomLengthMax)
     }
 }
