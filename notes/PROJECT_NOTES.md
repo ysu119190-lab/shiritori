@@ -39,10 +39,13 @@ Shiritori/
     KanaKeyboard.swift      50音タップ入力
     FlickKeyboard.swift     フリック入力
     Theme.swift             共通の見た目（背景・カード・ボタン・フォント）
-  Resources/words.txt       同梱ひらがな辞書（約1,200語）
+  Resources/words.txt       厳選辞書（約1,200語・出題/ヒント/判定）
+  Resources/words-large.txt 検証用拡張辞書（約45,000語・判定のみ。ipadic由来）
+  Resources/ipadic-COPYING.txt  拡張辞書のライセンス（同梱必須）
 ShiritoriTests/             ユニットテスト（XCTest, ホスト付き）
   KanaUtilsTests.swift      かな正規化・接続判定
   GameSettingsTests.swift   設定の丸め込み・後方互換デコード
+  WordValidatorTests.swift  同梱辞書の実在判定（オフライン）
 Info.plist                  実ファイル（AdMob のアプリID等）※同期グループ外
 Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 .github/workflows/
@@ -200,3 +203,17 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 
 - 別リポジトリ（photouploader）はセッションのソースに追加されていないとアクセス不可。
 - 新しい作業は新セッションで始め、最初にこのファイルを読ませて引き継ぐ。
+
+## 課題記録: ネット判定（Wikipedia）の精度が悪い (2026-08-10)
+
+- 症状: 普通の名詞（えんとつ・はなたば等）が「辞書に見つかりません」になりがち。
+- 原因: Wikipediaは百科事典で記事タイトルが漢字表記のため、読み（かな）の
+  タイトル完全一致では一般名詞がほぼ引けない（かなタイトルの有無が不規則）。
+  クエリ調整では直らない構造的問題。あいまい検索にすると誤受理が増える。
+- 対応: mecab-ipadic の名詞（一般・サ変接続・形容動詞語幹・副詞可能）から
+  読みを抽出した検証用拡張辞書 words-large.txt（約45,000語・0.62MB）を同梱。
+  実在判定は 厳選words.txt → 拡張words-large.txt → 端末辞書 → Wikipedia の順。
+  出題・ヒントは従来どおり厳選辞書のみ（難語を出さないため）。
+  ライセンス: ipadic-COPYING.txt を同梱し README に出典明記。
+- 教訓: 「読みで引ける辞書」が必要な機能に百科事典を使わない。
+  この環境から ja.wikipedia.org は遮断されておりライブ検証不可（分析はコード＋仕様ベース）。
