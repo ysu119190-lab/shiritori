@@ -40,9 +40,15 @@ struct GameSettings: Codable, Equatable {
     /// 辞書に無い単語でも、参加者が認めれば続行できるようにするか。
     var allowChallengeOverride: Bool
 
-    /// ラリー（手番）ごとにお題の文字数を `randomLengthRange`（2〜9文字）でランダムに決めるモード。
+    /// ラリー（手番）ごとにお題の文字数を randomLengthMin〜randomLengthMax でランダムに決めるモード。
     /// オンのときは minLength / maxLength ではなく「ちょうどN文字」で判定する。
     var isRandomLengthMode: Bool
+
+    /// ランダム文字数モードで使う文字数の幅（最小）。`randomLengthBounds` の範囲内。
+    var randomLengthMin: Int
+
+    /// ランダム文字数モードで使う文字数の幅（最大）。`randomLengthBounds` の範囲内で min 以上。
+    var randomLengthMax: Int
 
     /// アプリ内のかなキーボードで入力するか（システムIMEの予測変換・変換候補を避ける）。
     var useKanaKeyboard: Bool
@@ -53,9 +59,9 @@ struct GameSettings: Codable, Equatable {
     static let minPlayers = 2
     static let maxPlayers = 6
 
-    /// ランダム文字数モードで使う文字数の範囲。
+    /// ランダム文字数モードで設定できる文字数の上下限。
     /// 1文字は続けられる語がほぼ無く詰んでしまうため 2 文字から。
-    static let randomLengthRange = 2...9
+    static let randomLengthBounds = 2...9
 
     static let `default` = GameSettings(
         playerNames: ["プレイヤー1", "プレイヤー2"],
@@ -69,6 +75,8 @@ struct GameSettings: Codable, Equatable {
         turnTimeLimit: 0,
         allowChallengeOverride: true,
         isRandomLengthMode: false,
+        randomLengthMin: 2,
+        randomLengthMax: 9,
         useKanaKeyboard: true,
         kanaKeyboardStyle: .flick
     )
@@ -92,6 +100,14 @@ struct GameSettings: Codable, Equatable {
         s.minLength = max(1, min(s.minLength, 10))
         s.maxLength = max(s.minLength, min(s.maxLength, 12))
         s.turnTimeLimit = max(0, min(s.turnTimeLimit, 120))
+        // ランダム文字数の幅を上下限内へ丸め、min <= max を保証する。
+        let lo = Self.randomLengthBounds.lowerBound
+        let hi = Self.randomLengthBounds.upperBound
+        s.randomLengthMin = max(lo, min(s.randomLengthMin, hi))
+        s.randomLengthMax = max(lo, min(s.randomLengthMax, hi))
+        if s.randomLengthMax < s.randomLengthMin {
+            s.randomLengthMax = s.randomLengthMin
+        }
         return s
     }
 
@@ -136,6 +152,8 @@ extension GameSettings {
         allowChallengeOverride = try c.decode(Bool.self, forKey: .allowChallengeOverride)
         // 新規フィールドは無い場合があるので decodeIfPresent で補完する。
         isRandomLengthMode = try c.decodeIfPresent(Bool.self, forKey: .isRandomLengthMode) ?? false
+        randomLengthMin = try c.decodeIfPresent(Int.self, forKey: .randomLengthMin) ?? 2
+        randomLengthMax = try c.decodeIfPresent(Int.self, forKey: .randomLengthMax) ?? 9
         useKanaKeyboard = try c.decodeIfPresent(Bool.self, forKey: .useKanaKeyboard) ?? false
         // フリック入力を既定にする。
         kanaKeyboardStyle = try c.decodeIfPresent(KanaKeyboardStyle.self, forKey: .kanaKeyboardStyle) ?? .flick

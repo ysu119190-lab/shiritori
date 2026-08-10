@@ -144,7 +144,19 @@ struct SetupView: View {
         Section {
             Toggle("ラリーごとにランダム文字数", isOn: $game.settings.isRandomLengthMode)
 
-            if !game.settings.isRandomLengthMode {
+            if game.settings.isRandomLengthMode {
+                let bounds = GameSettings.randomLengthBounds
+                Stepper(
+                    "幅の最小: \(game.settings.randomLengthMin)文字",
+                    value: $game.settings.randomLengthMin,
+                    in: bounds.lowerBound...game.settings.randomLengthMax
+                )
+                Stepper(
+                    "幅の最大: \(game.settings.randomLengthMax)文字",
+                    value: $game.settings.randomLengthMax,
+                    in: game.settings.randomLengthMin...bounds.upperBound
+                )
+            } else {
                 Stepper("最小: \(game.settings.minLength)文字", value: $game.settings.minLength, in: 1...10)
 
                 Toggle("最大文字数を制限する", isOn: $game.settings.isMaxLengthEnabled)
@@ -165,8 +177,12 @@ struct SetupView: View {
 
     private var lengthFooter: String {
         if game.settings.isRandomLengthMode {
-            let r = GameSettings.randomLengthRange
-            return "毎ターン、\(r.lowerBound)〜\(r.upperBound)文字の中からお題の文字数がランダムに決まります。ちょうどその文字数の単語だけ使えます（最小・最大の設定は無視されます）。"
+            let lo = game.settings.randomLengthMin
+            let hi = game.settings.randomLengthMax
+            if lo == hi {
+                return "毎ターン、ちょうど\(lo)文字の単語だけ使えます。"
+            }
+            return "毎ターン、\(lo)〜\(hi)文字の中からお題の文字数がランダムに決まります。ちょうどその文字数の単語だけ使えます（最小・最大の設定は無視されます）。"
         }
         if game.settings.isMaxLengthEnabled {
             return "\(game.settings.minLength)〜\(game.settings.maxLength)文字の単語だけ使えます。"
