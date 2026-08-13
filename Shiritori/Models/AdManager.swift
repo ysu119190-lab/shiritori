@@ -15,7 +15,10 @@ enum AdConfig {
     private static let testInterstitialUnitID = "ca-app-pub-3940256099942544/4411468910"
 
     /// 本番のインタースティシャル広告ユニットID。未設定のうちはテストIDを使う。
-    private static let productionInterstitialUnitID: String? = nil
+    private static let productionInterstitialUnitID: String? = "ca-app-pub-5308803840858138/2635102855"
+
+    /// 本番のバナー広告ユニットID（AdMob側で発行済み・現状バナーは未実装）。
+    /// バナーを導入するときはこのIDを使う: ca-app-pub-5308803840858138/5550020742
 
     /// 実際に使う広告ユニットID。
     static var interstitialUnitID: String {
