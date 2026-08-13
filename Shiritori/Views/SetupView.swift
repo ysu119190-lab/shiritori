@@ -4,6 +4,7 @@ import SwiftUI
 struct SetupView: View {
     @EnvironmentObject private var game: ShiritoriGame
     @ObservedObject private var points = PointsStore.shared
+    @ObservedObject private var solo = SoloStats.shared
 
     var body: some View {
         NavigationStack {
@@ -12,6 +13,7 @@ struct SetupView: View {
                     resumeSection
                 }
                 pointsSection
+                modeSection
                 playersSection
                 lengthSection
                 inputSection
@@ -95,11 +97,66 @@ struct SetupView: View {
         }
     }
 
+    // MARK: - あそびかた（ひとり / みんな）
+
+    private var modeSection: some View {
+        Section {
+            Picker("あそびかた", selection: $game.settings.isSoloMode) {
+                Text("みんなで").tag(false)
+                Text("ひとりで").tag(true)
+            }
+            .pickerStyle(.segmented)
+
+            if game.settings.isSoloMode {
+                Picker("あいての強さ", selection: $game.settings.cpuDifficulty) {
+                    ForEach(CPUDifficulty.allCases, id: \.self) { level in
+                        Text(level.displayName).tag(level)
+                    }
+                }
+                soloStatsRow
+            }
+        } header: {
+            Text("あそびかた")
+        } footer: {
+            Text(game.settings.isSoloMode
+                 ? "コンピュータ（\(game.settings.cpuDifficulty.cpuName)）と1対1で対戦します。勝つとボーナスポイントがもらえます。"
+                 : "同じ端末を回して、2〜6人で交代しながら対戦します。")
+        }
+    }
+
+    /// ソロの戦績（勝敗・連勝）。
+    private var soloStatsRow: some View {
+        let record = solo.record(for: game.settings.cpuDifficulty)
+        return VStack(spacing: 8) {
+            HStack {
+                Label("せんせき", systemImage: "chart.bar.fill")
+                    .font(Theme.rounded(14, weight: .bold))
+                    .foregroundStyle(Theme.playerColor(2))
+                Spacer()
+                Text("\(record.wins)勝 \(record.losses)敗")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            HStack {
+                Label("れんしょう", systemImage: "flame.fill")
+                    .font(Theme.rounded(14, weight: .bold))
+                    .foregroundStyle(.orange)
+                Spacer()
+                Text(solo.currentStreak > 0 ? "\(solo.currentStreak)連勝中" : "—")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Text("(最高 \(solo.bestStreak))")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     // MARK: - プレイヤー
 
     private var playersSection: some View {
         Section {
-            ForEach(game.settings.playerNames.indices, id: \.self) { index in
+            ForEach(visiblePlayerIndices, id: \.self) { index in
                 HStack {
                     Image(systemName: points.iconID(forPlayer: index))
                         .foregroundStyle(Theme.playerColor(index))
@@ -111,19 +168,41 @@ struct SetupView: View {
                     .textInputAutocapitalization(.never)
                 }
             }
-            Stepper(
-                "人数: \(game.settings.playerNames.count)人",
-                value: Binding(
-                    get: { game.settings.playerNames.count },
-                    set: { setPlayerCount($0) }
-                ),
-                in: GameSettings.minPlayers...GameSettings.maxPlayers
-            )
+
+            if game.settings.isSoloMode {
+                HStack {
+                    Image(systemName: "cpu")
+                        .foregroundStyle(Theme.playerColor(1))
+                        .frame(width: 22)
+                    Text(game.settings.cpuDifficulty.cpuName)
+                    Spacer()
+                    Text(game.settings.cpuDifficulty.displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Stepper(
+                    "人数: \(game.settings.playerNames.count)人",
+                    value: Binding(
+                        get: { game.settings.playerNames.count },
+                        set: { setPlayerCount($0) }
+                    ),
+                    in: GameSettings.minPlayers...GameSettings.maxPlayers
+                )
+            }
         } header: {
             Text("プレイヤー")
         } footer: {
-            Text("同じ端末で順番に交代しながら対戦します。")
+            Text(game.settings.isSoloMode
+                 ? "あなたとコンピュータの1対1で対戦します。"
+                 : "同じ端末で順番に交代しながら対戦します。")
         }
+    }
+
+    /// 表示するプレイヤー欄。ソロのときは自分（先頭）だけ。
+    private var visiblePlayerIndices: [Int] {
+        let all = Array(game.settings.playerNames.indices)
+        return game.settings.isSoloMode ? Array(all.prefix(1)) : all
     }
 
     private func setPlayerCount(_ newCount: Int) {

@@ -28,6 +28,8 @@ Shiritori/
     PointsStore.swift       しりとりポイント＋アイコン所持
     AdManager.swift         AdMob インタースティシャル（＋AdConfig）
     GameRecord.swift        最長記録
+    CPUOpponent.swift       CPUの手の選択（難易度別・乱数注入でテスト可能）
+    SoloStats.swift         1人プレイの戦績（勝敗・連勝・最高連勝）
     Haptics.swift           触覚フィードバック
   Views/
     RootView.swift          フェーズ切替＋スプラッシュ＋起動時広告
@@ -46,6 +48,8 @@ ShiritoriTests/             ユニットテスト（XCTest, ホスト付き）
   KanaUtilsTests.swift      かな正規化・接続判定
   GameSettingsTests.swift   設定の丸め込み・後方互換デコード
   WordValidatorTests.swift  同梱辞書の実在判定（オフライン）
+  CPUOpponentTests.swift    CPUの手の選択（乱数固定で決定的に検証）
+  SoloStatsTests.swift      戦績・連勝の記録（専用UserDefaultsスイート）
 Info.plist                  実ファイル（AdMob のアプリID等）※同期グループ外
 Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 .github/workflows/
@@ -92,6 +96,7 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 | しりとりポイント | 単語 +1 / 決着 +5 / 記録更新 +10。アイコン12種と交換（こうかん所） |
 | 演出 | 起動スプラッシュ、単語受理時のキラキラ、触覚フィードバック |
 | 制限時間 | 1手ごとの秒数指定（任意） |
+| 1人プレイ | CPU対戦（よわい/ふつう/つよい）。勝敗・連勝を記録、勝利でボーナスポイント |
 | 広告 | 起動時・開始時・決着時のインタースティシャル（**60秒の頻度制限**） |
 
 ---

@@ -73,7 +73,36 @@ final class ShiritoriGame: ObservableObject {
 
     var bundledWordCount: Int { validator.bundledWordCount }
 
-    var players: [String] { settings.playerNames }
+    // MARK: - 1人プレイ（CPU対戦）
+
+    /// 1人プレイ（CPU対戦）モードか。
+    var isSoloMode: Bool { settings.isSoloMode }
+
+    /// ソロモードでのCPUのプレイヤー番号（人間が0、CPUが1）。
+    let cpuPlayerIndex = 1
+
+    /// いまCPUの手番か。
+    var isCPUTurn: Bool { isSoloMode && currentPlayerIndex == cpuPlayerIndex && phase == .playing }
+
+    /// CPUが「考え中」の表示を出すためのフラグ。
+    @Published private(set) var isCPUThinking = false
+
+    /// ソロ対戦の結果（結果画面用）。nil のときはソロ以外か未決着。
+    @Published private(set) var soloWon: Bool? = nil
+    /// ソロ勝利で獲得した難易度ボーナス。
+    @Published private(set) var soloWinBonus: Int = 0
+    /// 今回の勝利で最高連勝を更新したか。
+    @Published private(set) var didSetBestStreak: Bool = false
+
+    private var cpuTask: Task<Void, Never>? = nil
+
+    var players: [String] {
+        if isSoloMode {
+            let humanName = settings.playerNames.first ?? "あなた"
+            return [humanName, settings.cpuDifficulty.cpuName]
+        }
+        return settings.playerNames
+    }
 
     var currentPlayerName: String {
         guard players.indices.contains(currentPlayerIndex) else { return "" }
@@ -124,6 +153,11 @@ final class ShiritoriGame: ObservableObject {
         earnedPoints = 0
         hintText = nil
         hintCountThisTurn = 0
+        soloWon = nil
+        soloWinBonus = 0
+        didSetBestStreak = false
+        cpuTask?.cancel()
+        isCPUThinking = false
         remainingTime = settings.turnTimeLimit
         seedFirstWord()
         rollRequiredLength()
@@ -207,8 +241,13 @@ final class ShiritoriGame: ObservableObject {
         loserIndex = nil
         resultMessage = ""
         didSetNewRecord = false
+        soloWon = nil
+        soloWinBonus = 0
+        didSetBestStreak = false
         phase = .playing
         discardSavedGame()
+        // 中断時が CPU の手番だった場合は、再開と同時に打たせる。
+        scheduleCPUTurnIfNeeded()
     }
 
     /// 保存データを捨てる。
@@ -226,7 +265,12 @@ final class ShiritoriGame: ObservableObject {
     /// - `forceAcceptExistence`: 実在チェックを飛ばして受理する（承認またはウェブ判定OKのとき）。
     /// - `acceptedViaWeb`: ウェブ（Wikipedia）判定で受理した場合は true。履歴のバッジ表示に使う。
     @discardableResult
-    func submit(_ rawInput: String, forceAcceptExistence: Bool = false, acceptedViaWeb: Bool = false) -> SubmitResult {
+    func submit(
+        _ rawInput: String,
+        forceAcceptExistence: Bool = false,
+        acceptedViaWeb: Bool = false,
+        byCPU: Bool = false
+    ) -> SubmitResult {
         let reading = KanaUtils.normalize(rawInput)
 
         // 入力の基本チェック
@@ -285,7 +329,8 @@ final class ShiritoriGame: ObservableObject {
             word: reading,
             reading: reading,
             playerIndex: currentPlayerIndex,
-            acceptedByChallenge: forceAcceptExistence && !acceptedViaWeb,
+            // CPU は辞書から選んでいるので「承認」扱いにはしない。
+            acceptedByChallenge: forceAcceptExistence && !acceptedViaWeb && !byCPU,
             acceptedByWeb: acceptedViaWeb
         )
         history.append(move)
@@ -324,9 +369,66 @@ final class ShiritoriGame: ObservableObject {
         rollRequiredLength()
         hintText = nil
         hintCountThisTurn = 0
+        scheduleCPUTurnIfNeeded()
+    }
+
+    // MARK: - CPU の手番
+
+    /// CPU の手番なら、少し「考えて」から手を打つ。
+    private func scheduleCPUTurnIfNeeded() {
+        guard isCPUTurn else { return }
+        cpuTask?.cancel()
+        isCPUThinking = true
+        cpuTask = Task { @MainActor [weak self] in
+            // すぐ返すと機械的すぎるので、少し間を置く。
+            let delay = Double.random(in: 0.9...1.8)
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.playCPUTurn()
+        }
+    }
+
+    /// CPU が実際に単語を打つ（打てなければ降参）。
+    private func playCPUTurn() {
+        isCPUThinking = false
+        guard isCPUTurn else { return }
+
+        let candidates = validator.candidateWords(
+            startKanas: acceptableStartKanas,
+            ignoreDakuten: settings.ignoreDakuten,
+            exactLength: requiredLength,
+            minLength: settings.isRandomLengthMode ? 1 : settings.minLength,
+            maxLength: (!settings.isRandomLengthMode && settings.isMaxLengthEnabled) ? settings.maxLength : nil,
+            used: usedReadings,
+            // よわい CPU は厳選辞書だけ＝身近な語しか使わない。
+            includeExtended: settings.cpuDifficulty != .easy
+        )
+
+        let opponent = CPUOpponent(
+            difficulty: settings.cpuDifficulty,
+            followUpCount: { [weak self] kana in
+                self?.validator.wordCount(startingWith: kana) ?? 0
+            }
+        )
+        let cpuTurns = history.filter { $0.playerIndex == cpuPlayerIndex }.count
+
+        guard let word = opponent.chooseWord(from: candidates, turnCount: cpuTurns) else {
+            // 続けられる語が無い（または諦めた）＝ CPU の負け。
+            finish(loser: cpuPlayerIndex, message: "\(players[cpuPlayerIndex])は言葉が見つかりませんでした")
+            return
+        }
+        // CPU の語は辞書から選んでいるので実在チェックは不要。
+        submit(word, forceAcceptExistence: true, byCPU: true)
+    }
+
+    /// CPU の思考を止める（画面を離れるときなど）。
+    func cancelCPUTurn() {
+        cpuTask?.cancel()
+        isCPUThinking = false
     }
 
     private func finish(loser: Int, message: String) {
+        cancelCPUTurn()
         loserIndex = loser
         resultMessage = message
         // 続いた単語数（＝最後の「ん」止まりの語も含む）を記録に反映。
@@ -335,6 +437,19 @@ final class ShiritoriGame: ObservableObject {
 
         // 対戦をやり切ったボーナス。記録更新ならさらに上乗せ。
         earnedPoints = PointsStore.finishBonus + (didSetNewRecord ? PointsStore.recordBonus : 0)
+
+        // 1人プレイなら戦績と連勝を記録し、勝利ボーナスを上乗せする。
+        if isSoloMode {
+            let won = (loser == cpuPlayerIndex)
+            soloWon = won
+            didSetBestStreak = SoloStats.shared.recordResult(won: won, difficulty: settings.cpuDifficulty)
+            if won {
+                soloWinBonus = SoloStats.winBonus(for: settings.cpuDifficulty)
+                    + (didSetBestStreak ? SoloStats.bestStreakBonus : 0)
+                earnedPoints += soloWinBonus
+            }
+        }
+
         PointsStore.shared.award(earnedPoints)
 
         phase = .finished
