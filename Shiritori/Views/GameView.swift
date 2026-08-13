@@ -20,8 +20,11 @@ struct GameView: View {
         Theme.playerColor(game.currentPlayerIndex)
     }
 
-    /// 入力を受け付けない状態か（ウェブ確認中、または CPU の手番）。
-    private var isInputLocked: Bool { isChecking || game.isCPUTurn }
+    /// 入力を受け付けない状態か（ウェブ確認中、CPU の手番、または相手の手番）。
+    private var isInputLocked: Bool { isChecking || isTurnLocked }
+
+    /// 自分の番ではないので操作できない状態か。
+    private var isTurnLocked: Bool { game.isCPUTurn || !game.isMyTurn }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,6 +49,13 @@ struct GameView: View {
             if !game.settings.useKanaKeyboard { inputFocused = true }
         }
         .onReceive(ticker) { _ in tick() }
+        .onChange(of: game.networkMessage) { _, message in
+            // ホストから却下理由が届いたら、通常のエラー表示と同じ場所に出す。
+            guard let message else { return }
+            Haptics.error()
+            withAnimation { errorMessage = message }
+            game.networkMessage = nil
+        }
         .alert("辞書に見つかりません", isPresented: existenceAlertBinding) {
             Button("認めて続行") { confirmExistence() }
             Button("取り消す", role: .cancel) { pendingReading = nil }
@@ -59,14 +69,24 @@ struct GameView: View {
             Text("\(game.currentPlayerName)さんの負けになります。")
         }
         .confirmationDialog("対戦を中断しますか？", isPresented: $showExitOptions, titleVisibility: .visible) {
-            Button("中断して保存") {
-                Haptics.success()
-                game.suspendAndSave()
+            if game.playMode.isNearby {
+                // 通信対戦は保存して再開できないので、終了のみ。
+                Button("対戦をやめる", role: .destructive) {
+                    game.endNearbyGame()
+                    game.backToSetup()
+                }
+            } else {
+                Button("中断して保存") {
+                    Haptics.success()
+                    game.suspendAndSave()
+                }
+                Button("保存せずに終了", role: .destructive) { game.backToSetup() }
             }
-            Button("保存せずに終了", role: .destructive) { game.backToSetup() }
             Button("対戦を続ける", role: .cancel) {}
         } message: {
-            Text("「中断して保存」なら、設定画面から続きを再開できます。")
+            Text(game.playMode.isNearby
+                 ? "相手との接続を切って設定画面に戻ります。"
+                 : "「中断して保存」なら、設定画面から続きを再開できます。")
         }
     }
 
@@ -240,7 +260,7 @@ struct GameView: View {
     private var inputBar: some View {
         VStack(spacing: 6) {
             HStack {
-                if game.isCPUThinking {
+                if game.isCPUThinking || (!game.isMyTurn && game.phase == .playing) {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
                         Text("\(game.currentPlayerName) が考えています…")
@@ -306,7 +326,7 @@ struct GameView: View {
             .buttonStyle(.borderedProminent)
             .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty || isInputLocked)
         }
-        .disabled(game.isCPUTurn)
+        .disabled(isTurnLocked)
     }
 
     /// アプリ内かなキーボードを使う入力（予測変換が出ない）。
@@ -332,8 +352,8 @@ struct GameView: View {
                 )
             }
         }
-        .disabled(game.isCPUTurn)
-        .opacity(game.isCPUTurn ? 0.5 : 1)
+        .disabled(isTurnLocked)
+        .opacity(isTurnLocked ? 0.5 : 1)
     }
 
     /// かなキーボード入力時の、入力中テキストの表示欄。
@@ -504,6 +524,10 @@ struct GameView: View {
             withAnimation { errorMessage = reason }
         case .needsExistenceConfirmation(let reading):
             pendingReading = reading
+        case .sentToHost:
+            // 近くの端末対戦：ホストの判定を待つ。却下されたら networkMessage で戻ってくる。
+            input = ""
+            withAnimation { errorMessage = nil }
         }
     }
 
@@ -521,6 +545,8 @@ struct GameView: View {
         guard game.phase == .playing, game.isTimed else { return }
         // CPU が考えている間は持ち時間を減らさない。
         guard !game.isCPUTurn else { return }
+        // 近くの端末対戦では、時計はホストだけが進める（ゲストは受け取った値を表示する）。
+        guard game.playMode != .nearbyGuest else { return }
         if game.remainingTime > 0 {
             game.remainingTime -= 1
         }

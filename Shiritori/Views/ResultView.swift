@@ -43,9 +43,11 @@ struct ResultView: View {
                 .font(Theme.title(36))
 
             VStack(spacing: 8) {
-                Text(soloWon == nil ? "\(game.loserName) さんの負け" : "\(game.loserName) の負け")
-                    .font(Theme.rounded(22, weight: .bold))
-                    .foregroundStyle(.red)
+                if game.loserIndex != nil {
+                    Text(soloWon == nil ? "\(game.loserName) さんの負け" : "\(game.loserName) の負け")
+                        .font(Theme.rounded(22, weight: .bold))
+                        .foregroundStyle(.red)
+                }
                 Text(game.resultMessage)
                     .font(Theme.rounded(14))
                     .foregroundStyle(.secondary)
@@ -97,21 +99,47 @@ struct ResultView: View {
             Spacer()
 
             VStack(spacing: 12) {
-                Button {
-                    Haptics.tap()
-                    game.restart()
-                } label: {
-                    Label("もう一度あそぶ", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(CuteButtonStyle(color: Theme.playerColor(0)))
+                if game.playMode.isNearby {
+                    // 通信対戦はホストだけが次の対戦を始められる。
+                    if game.playMode == .nearbyHost && !game.didLoseConnection {
+                        Button {
+                            Haptics.tap()
+                            game.restart()
+                        } label: {
+                            Label("もう一度あそぶ", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(CuteButtonStyle(color: Theme.playerColor(0)))
+                    } else if !game.didLoseConnection {
+                        Text("ホストが次の対戦を始めるのを待っています…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
-                Button {
-                    Haptics.tap()
-                    game.backToSetup()
-                } label: {
-                    Text("設定を変える")
+                    Button {
+                        Haptics.tap()
+                        game.endNearbyGame()
+                        game.backToSetup()
+                    } label: {
+                        Text("対戦をおわる")
+                    }
+                    .buttonStyle(CuteButtonStyle(color: Theme.playerColor(1), filled: false))
+                } else {
+                    Button {
+                        Haptics.tap()
+                        game.restart()
+                    } label: {
+                        Label("もう一度あそぶ", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(CuteButtonStyle(color: Theme.playerColor(0)))
+
+                    Button {
+                        Haptics.tap()
+                        game.backToSetup()
+                    } label: {
+                        Text("設定を変える")
+                    }
+                    .buttonStyle(CuteButtonStyle(color: Theme.playerColor(1), filled: false))
                 }
-                .buttonStyle(CuteButtonStyle(color: Theme.playerColor(1), filled: false))
             }
             .padding(.horizontal)
         }
