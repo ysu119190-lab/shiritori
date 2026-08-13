@@ -147,6 +147,10 @@ struct ResultView: View {
         .padding()
         .background(AppBackground())
         .task {
+            #if DEBUG
+            // スクリーンショット撮影中は広告を出さない。
+            if ScreenshotMode.isActive { return }
+            #endif
             // 決着画面が出そろってから広告を出す（頻度制限あり）。
             try? await Task.sleep(nanoseconds: 600_000_000)
             AdManager.shared.show(.gameEnd)

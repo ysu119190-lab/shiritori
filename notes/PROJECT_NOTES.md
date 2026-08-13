@@ -32,6 +32,7 @@ Shiritori/
     SoloStats.swift         1人プレイの戦績（勝敗・連勝・最高連勝）
     NearbySession.swift     近距離通信（MultipeerConnectivity）の薄いラッパー
     PeerMessage.swift       端末間メッセージと GameSnapshot（Codable）
+    ScreenshotMode.swift    ストア用スクショの仕込み（#if DEBUG。起動引数で画面を再現）
     GameCenterManager.swift Game Center 認証＋ターン制対戦の受け渡し
     OnlineMatchState.swift  matchData として持ち回るゲーム状態（Codable）
     Haptics.swift           触覚フィードバック
@@ -45,6 +46,7 @@ Shiritori/
     KanaKeyboard.swift      50音タップ入力
     FlickKeyboard.swift     フリック入力
     Theme.swift             共通の見た目（背景・カード・ボタン・フォント）
+    HelpView.swift          あそびかたの説明（通信対戦の手順・つまずき対策）
     NearbyLobbyView.swift   近くの端末と待ち合わせて接続する画面
     GameCenterMatchmakerView.swift  対戦相手さがし画面のブリッジ
   Resources/words.txt       厳選辞書（約1,200語・出題/ヒント/判定）
@@ -64,6 +66,10 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 .github/workflows/
   ci.yml                    PR / main push で iOS ビルド検証
   testflight.yml            手動実行（Actions → TestFlight → Run workflow）
+  store-screenshots.yml     手動実行。シミュレータでストア用スクショを自動撮影
+scripts/
+  capture_screenshots.sh    スクショ撮影の本体（ワークフローから呼ぶ）
+  pick_simulator.py         条件に合うシミュレータを動的に選ぶ
 ```
 
 ---
@@ -95,6 +101,9 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
   プレイヤーは「手番が回ってきた人から順に登録」して、参加の順番に依存しないようにする。
 - **通信対戦では実在判定を同梱辞書だけにする。** ウェブ判定や参加者承認は非同期の
   往復が増えて待ちが読めないため、46,000語のオフライン辞書で即断する。
+- **ストア用スクショは起動引数で撮る。** UIテストターゲットを足さず、
+  `-screenshotScene <名前>` で決まった画面を直接開かせて `simctl io screenshot` で撮る。
+  内容が固定なので毎回同じ絵になる。仕込みは `#if DEBUG` でリリースには入らない。
 - **広告は「出せなければ出さない」。** アプリIDが無い / 未ロード / 画面遷移中は黙って
   スキップし、ゲームは絶対に止めない。
 

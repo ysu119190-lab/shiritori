@@ -1,0 +1,74 @@
+name: Store Screenshots
+
+# App Store 用のスクリーンショットを自動で撮る（手動実行）。
+# Actions → Store Screenshots → Run workflow
+#
+# 仕組み: Debug ビルドをシミュレータに入れ、起動引数 `-screenshotScene <名前>` で
+# 目的の画面を直接開かせてから `simctl io screenshot` で撮る。
+# 画面の中身は固定なので、何度撮っても同じ絵になる。
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: 撮影する端末
+        type: choice
+        options:
+          - both
+          - iphone
+          - ipad
+        default: both
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    name: Capture screenshots
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          fi
+          echo "Selecting $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Build app for simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Shiritori.xcodeproj \
+            -scheme Shiritori \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee "$RUNNER_TEMP/build.log"
+
+      - name: Capture
+        env:
+          TARGET: ${{ inputs.device }}
+        run: bash scripts/capture_screenshots.sh
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-screenshots
+          path: ${{ runner.temp }}/screenshots
+          if-no-files-found: error
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-build-log
+          path: ${{ runner.temp }}/build.log
+          if-no-files-found: ignore
