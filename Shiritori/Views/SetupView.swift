@@ -5,7 +5,9 @@ struct SetupView: View {
     @EnvironmentObject private var game: ShiritoriGame
     @ObservedObject private var points = PointsStore.shared
     @ObservedObject private var solo = SoloStats.shared
+    @ObservedObject private var gameCenter = GameCenterManager.shared
     @State private var showNearbyLobby = false
+    @State private var showOnlineMatchmaker = false
 
     var body: some View {
         NavigationStack {
@@ -31,6 +33,26 @@ struct SetupView: View {
             .sheet(isPresented: $showNearbyLobby) {
                 NearbyLobbyView(myName: game.settings.playerNames.first ?? "プレイヤー")
                     .environmentObject(game)
+            }
+            #if canImport(GameKit)
+            .sheet(isPresented: $showOnlineMatchmaker) {
+                GameCenterMatchmakerView { errorMessage in
+                    // 対戦そのものは GameKit のリスナー経由で届く。ここは閉じるだけ。
+                    showOnlineMatchmaker = false
+                    if let errorMessage {
+                        gameCenter.message = errorMessage
+                    }
+                    // 対戦が始まらないまま閉じたら、オンラインモードを解除する。
+                    if game.phase != .playing {
+                        game.endOnlineMatch()
+                    }
+                }
+                .ignoresSafeArea()
+                .onAppear { game.beginOnlineMatch() }
+            }
+            #endif
+            .onAppear {
+                gameCenter.loadOngoingMatches()
             }
         }
     }
@@ -124,24 +146,26 @@ struct SetupView: View {
                     Haptics.tap()
                     showNearbyLobby = true
                 } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "iphone.gen3.radiowaves.left.and.right")
-                            .font(.title3)
-                            .foregroundStyle(Theme.playerColor(2))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("近くの人と対戦する")
-                                .font(Theme.rounded(16, weight: .bold))
-                                .foregroundStyle(.primary)
-                            Text("別の端末とつないで1対1")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    modeRow(
+                        icon: "iphone.gen3.radiowaves.left.and.right",
+                        color: Theme.playerColor(2),
+                        title: "近くの人と対戦する",
+                        detail: "別の端末とつないで1対1"
+                    )
                 }
+
+                Button {
+                    Haptics.tap()
+                    showOnlineMatchmaker = true
+                } label: {
+                    modeRow(
+                        icon: "globe",
+                        color: Theme.playerColor(4),
+                        title: "はなれた人と対戦する",
+                        detail: onlineDetail
+                    )
+                }
+                .disabled(!gameCenter.authState.isAuthenticated)
             }
         } header: {
             Text("あそびかた")
@@ -149,6 +173,40 @@ struct SetupView: View {
             Text(game.settings.isSoloMode
                  ? "コンピュータ（\(game.settings.cpuDifficulty.cpuName)）と1対1で対戦します。勝つとボーナスポイントがもらえます。"
                  : "同じ端末を回して、2〜6人で交代しながら対戦します。")
+        }
+    }
+
+    /// 対戦形式の1行（アイコン＋説明）。
+    private func modeRow(icon: String, color: Color, title: String, detail: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(color)
+                .frame(width: 26)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(Theme.rounded(16, weight: .bold))
+                    .foregroundStyle(.primary)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// オンライン対戦の説明（Game Center の状態で変わる）。
+    private var onlineDetail: String {
+        switch gameCenter.authState {
+        case .authenticated:
+            return "Game Center でターン制の対戦"
+        case .authenticating, .unknown:
+            return "Game Center に接続しています…"
+        case .unavailable:
+            return "Game Center にサインインすると使えます"
         }
     }
 
