@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>しりとり - 友達とあそべる ことばゲーム</title>
+<meta name="description" content="友達と同じiPhoneで交代しながら遊べる、しりとりアプリ。文字数制限や単語の実在チェックも自動。">
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    margin: 0;
+    color: #333;
+    background: #fff;
+    line-height: 1.9;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #ddd; background: #1c1c1e; }
+    .card { background: #2c2c2e !important; }
+    a { color: #ff9e7d; }
+  }
+  header {
+    background: linear-gradient(160deg, #ff9e7d, #f0583a);
+    color: #fff;
+    text-align: center;
+    padding: 56px 20px 48px;
+  }
+  .icon {
+    width: 96px; height: 96px;
+    border-radius: 22px;
+    background: #fff;
+    color: #e94a2b;
+    font-size: 58px; font-weight: 800;
+    line-height: 96px;
+    margin: 0 auto 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.2);
+  }
+  h1 { margin: 0 0 8px; font-size: 2rem; }
+  .tagline { margin: 0; opacity: .95; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+  h2 { color: #f0583a; font-size: 1.2rem; margin-top: 2em; }
+  .features { list-style: none; padding: 0; }
+  .features li {
+    padding: 10px 0 10px 2.2em;
+    position: relative;
+  }
+  .features li::before {
+    content: attr(data-emoji);
+    position: absolute; left: 0;
+  }
+  .card {
+    background: #fff4f0;
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin: 1.5em 0;
+  }
+  a { color: #d8442a; }
+  footer {
+    text-align: center;
+    color: #999;
+    font-size: .85rem;
+    padding: 24px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="icon">し</div>
+  <h1>しりとり</h1>
+  <p class="tagline">友達とあそべる、ことばゲーム</p>
+</header>
+
+<main>
+  <p>「しりとり」は、1台の iPhone を交代しながら 2〜6 人で遊べる、しりとり専用アプリです。ルールの判定はぜんぶアプリにおまかせ。ことば遊びに集中できます。</p>
+
+  <h2>特長</h2>
+  <ul class="features">
+    <li data-emoji="👥">同じ端末をまわして 2〜6 人で対戦（パス＆プレイ）</li>
+    <li data-emoji="📖">約 46,000 語の辞書で、単語が実在するかを自動判定</li>
+    <li data-emoji="🔢">文字数制限や「毎ターンお題の文字数がランダムに変わる」モード</li>
+    <li data-emoji="🧩">「ん」で終わったら負け・重複禁止・長音や小さい文字のルールも自動判定</li>
+    <li data-emoji="⌨️">予測変換で答えがバレない、アプリ内かなキーボード（フリック / 50音）</li>
+    <li data-emoji="💡">困ったときのヒント機能、対戦の中断・再開、しりとりポイント集め</li>
+    <li data-emoji="⏱">1手ごとの制限時間（オプション）</li>
+  </ul>
+
+  <div class="card">
+    <strong>お問い合わせ・不具合報告</strong><br>
+    <a href="https://github.com/ysu119190-lab/shiritori/issues" target="_blank" rel="noopener">GitHub Issues</a> までお気軽にどうぞ。
+  </div>
+
+  <p><a href="./privacy.html">プライバシーポリシー</a></p>
+</main>
+
+<footer>
+  © 2026 しりとり
+</footer>
+
+</body>
+</html>
