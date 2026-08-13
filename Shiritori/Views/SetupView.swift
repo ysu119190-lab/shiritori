@@ -8,6 +8,7 @@ struct SetupView: View {
     @ObservedObject private var gameCenter = GameCenterManager.shared
     @State private var showNearbyLobby = false
     @State private var showOnlineMatchmaker = false
+    @State private var showHelp = false
 
     var body: some View {
         NavigationStack {
@@ -27,8 +28,28 @@ struct SetupView: View {
             .scrollContentBackground(.hidden)
             .background(AppBackground())
             .navigationTitle("しりとり")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Haptics.tap()
+                        showHelp = true
+                    } label: {
+                        Label("あそびかた", systemImage: "questionmark.circle")
+                    }
+                }
+            }
             .safeAreaInset(edge: .bottom) {
                 startButton
+            }
+            .sheet(isPresented: $showHelp) {
+                HelpView()
+            }
+            .task {
+                #if DEBUG
+                // スクリーンショット撮影：指定された画面をそのまま開く。
+                if ScreenshotMode.scene == .nearby { showNearbyLobby = true }
+                if ScreenshotMode.scene == .help { showHelp = true }
+                #endif
             }
             .sheet(isPresented: $showNearbyLobby) {
                 NearbyLobbyView(myName: game.settings.playerNames.first ?? "プレイヤー")

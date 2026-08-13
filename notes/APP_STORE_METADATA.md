@@ -256,14 +256,28 @@ App Store Connect に貼り付けるための原稿。文字数は Apple の上�
 6. **結果画面**（かち！＋ポイント）
    キャプション: 「勝ってポイントを集めよう」
 
-### 撮り方（ユーザー作業）
+### 撮り方（自動）
 
-1. Xcode でシミュレータ（iPhone 16 Pro Max / iPad Pro 13インチ）を起動
-2. 各画面で `⌘ + S`（シミュレータの「Save Screen」）
-3. デスクトップに保存された PNG をそのまま App Store Connect にアップロード
+**GitHub Actions で自動撮影できます。**
 
-> 補足: 手動が面倒であれば、`store-screenshots` 相当のワークフローを
-> 後から追加して自動化することもできる（PhotoUploader と同じ方式）。
+1. Actions → **Store Screenshots** → Run workflow
+2. 撮影する端末（`both` / `iphone` / `ipad`）を選んで実行
+3. 完了後、artifact **store-screenshots** をダウンロード
+4. 中の PNG をそのまま App Store Connect にアップロード
+
+仕組み: Debug ビルドをシミュレータに入れ、起動引数 `-screenshotScene <名前>` で
+目的の画面を直接開かせて `simctl io screenshot` で撮ります。
+内容は固定（プレイヤー名「さくら / ゆうと」、しりとりの履歴も固定）なので、
+何度撮っても同じ絵になります。ステータスバーも 9:41・電波満タンに揃えられます。
+
+撮れる画面: `setup` / `game` / `keyboard` / `nearby` / `solo` / `help` / `result`
+
+> 実行結果のサマリーに**画像サイズの一覧**が出ます。
+> App Store の要求サイズ（iPhone 6.9" = 1320x2868 / iPad 13" = 2064x2752）と
+> 一致しているか確認してください。ランナーのシミュレータ構成によっては
+> 別サイズになることがあります。
+
+> 撮影用のコードは `#if DEBUG` で囲まれており、**リリースビルドには含まれません**。
 
 ---
 

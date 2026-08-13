@@ -48,6 +48,24 @@ struct RootView: View {
         }
         #endif
         .task {
+            #if DEBUG
+            // ストア用スクリーンショットの撮影中は、スプラッシュ・広告・
+            // Game Center のサインインをすべて省いて、目的の画面だけを出す。
+            if let scene = ScreenshotMode.scene {
+                showSplash = false
+                switch scene {
+                case .game, .keyboard:
+                    game.configureForScreenshot(finished: false)
+                case .result:
+                    game.configureForScreenshot(finished: true)
+                case .setup, .solo, .nearby, .help:
+                    game.settings = ScreenshotMode.demoSettings()
+                    if scene == .solo { game.settings.isSoloMode = true }
+                }
+                return
+            }
+            #endif
+
             // 広告 SDK の初期化と先読み。
             AdManager.shared.start()
 

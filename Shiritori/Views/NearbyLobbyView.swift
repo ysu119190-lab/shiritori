@@ -8,6 +8,7 @@ struct NearbyLobbyView: View {
 
     @StateObject private var session: NearbySession
     @State private var didStartGame = false
+    @State private var showHelp = false
 
     /// 自分の表示名。
     private let myName: String
@@ -55,6 +56,9 @@ struct NearbyLobbyView: View {
                 }
             }
         }
+        .sheet(isPresented: $showHelp) {
+            HelpView()
+        }
         .onDisappear {
             // 対戦を開始していないのに閉じたら、探索・接続を必ず止める。
             if !didStartGame { session.stop() }
@@ -100,10 +104,41 @@ struct NearbyLobbyView: View {
             }
             .buttonStyle(CuteButtonStyle(color: Theme.playerColor(1), filled: false))
 
-            Text("どちらか一方が「部屋をつくる」を選んでください。")
+            preparationCard
+
+            Button {
+                Haptics.tap()
+                showHelp = true
+            } label: {
+                Label("くわしいあそびかた", systemImage: "questionmark.circle")
+                    .font(.subheadline)
+            }
+        }
+    }
+
+    /// つなぐ前に確認してほしいこと。ここでつまずく人が多いので目立つ場所に置く。
+    private var preparationCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("つなぐ前に", systemImage: "checklist")
+                .font(Theme.rounded(14, weight: .bold))
+                .foregroundStyle(Theme.playerColor(2))
+            checkLine("2台とも Wi-Fi と Bluetooth をオンにする")
+            checkLine("どちらか一方が「部屋をつくる」、もう一方が「部屋に入る」")
+            checkLine("「ローカルネットワーク」の確認が出たら「許可」")
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardStyle(cornerRadius: 14, tint: Theme.playerColor(2))
+    }
+
+    private func checkLine(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
                 .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
+                .foregroundStyle(Theme.playerColor(2))
+            Text(text)
+                .font(Theme.rounded(13))
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -134,7 +169,7 @@ struct NearbyLobbyView: View {
             if session.foundPeerNames.isEmpty {
                 waitingCard(
                     title: "近くの部屋をさがしています…",
-                    detail: "相手の端末で「部屋をつくる」を選んでもらってください。"
+                    detail: "相手の端末で「部屋をつくる」を選んでもらってください。\n見つからないときは、2台とも Wi-Fi と Bluetooth がオンか確認してください。"
                 )
             } else {
                 VStack(spacing: 10) {

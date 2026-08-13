@@ -45,6 +45,10 @@ struct GameView: View {
         }
         .tint(playerColor)
         .onAppear {
+            #if DEBUG
+            // スクリーンショット撮影：入力途中の見た目にする。
+            if ScreenshotMode.scene == .keyboard { input = ScreenshotMode.demoTypingInput }
+            #endif
             // かなキーボード使用時はシステムキーボードを出さない。
             if !game.settings.useKanaKeyboard { inputFocused = true }
         }

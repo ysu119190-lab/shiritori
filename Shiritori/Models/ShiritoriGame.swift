@@ -915,6 +915,53 @@ final class ShiritoriGame: ObservableObject {
     /// これまでの最長連鎖記録。
     var longestChainRecord: Int { GameRecord.longestChain }
 
+    #if DEBUG
+    // MARK: - スクリーンショット用（Debug ビルドのみ）
+
+    /// 決まった内容の対戦状況を作る。判定を通さずに履歴を組み立てるので、
+    /// 辞書の中身やお題の抽選に左右されず、毎回まったく同じ絵になる。
+    func configureForScreenshot(finished: Bool) {
+        settings = ScreenshotMode.demoSettings()
+        history.removeAll()
+        usedReadings.removeAll()
+
+        let seed = ScreenshotMode.demoSeed
+        history.append(Move(
+            word: seed, reading: seed, playerIndex: -1,
+            acceptedByChallenge: false, acceptedByWeb: false, isSeed: true
+        ))
+        usedReadings.insert(seed)
+
+        for (offset, word) in ScreenshotMode.demoMoves.enumerated() {
+            history.append(Move(
+                word: word, reading: word, playerIndex: offset % 2,
+                acceptedByChallenge: false, acceptedByWeb: false
+            ))
+            usedReadings.insert(word)
+        }
+
+        let last = history.last?.reading ?? seed
+        requiredStartKana = KanaUtils.connectingKana(of: last)
+        currentPlayerIndex = ScreenshotMode.demoMoves.count % 2
+        requiredLength = nil
+        remainingTime = 18
+        loserIndex = nil
+        didSetNewRecord = false
+        soloWon = nil
+
+        if finished {
+            loserIndex = 1
+            resultMessage = "「\(last)」のあとが続きませんでした"
+            earnedPoints = PointsStore.finishBonus
+            didSetNewRecord = true
+            phase = .finished
+        } else {
+            resultMessage = ""
+            phase = .playing
+        }
+    }
+    #endif
+
     /// 勝者（負けた人以外）の名前一覧。
     var winnerNames: [String] {
         guard let loser = loserIndex else { return [] }
