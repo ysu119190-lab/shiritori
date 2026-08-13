@@ -69,10 +69,10 @@ struct GameView: View {
             Text("\(game.currentPlayerName)さんの負けになります。")
         }
         .confirmationDialog("対戦を中断しますか？", isPresented: $showExitOptions, titleVisibility: .visible) {
-            if game.playMode.isNearby {
+            if game.playMode.isNetworked {
                 // 通信対戦は保存して再開できないので、終了のみ。
                 Button("対戦をやめる", role: .destructive) {
-                    game.endNearbyGame()
+                    game.leaveNetworkedGame()
                     game.backToSetup()
                 }
             } else {
@@ -84,8 +84,8 @@ struct GameView: View {
             }
             Button("対戦を続ける", role: .cancel) {}
         } message: {
-            Text(game.playMode.isNearby
-                 ? "相手との接続を切って設定画面に戻ります。"
+            Text(game.playMode.isNetworked
+                 ? "対戦から抜けて設定画面に戻ります。"
                  : "「中断して保存」なら、設定画面から続きを再開できます。")
         }
     }

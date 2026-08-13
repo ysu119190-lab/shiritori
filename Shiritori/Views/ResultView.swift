@@ -99,8 +99,9 @@ struct ResultView: View {
             Spacer()
 
             VStack(spacing: 12) {
-                if game.playMode.isNearby {
-                    // 通信対戦はホストだけが次の対戦を始められる。
+                if game.playMode.isNetworked {
+                    // 近距離対戦はホストだけが次の対戦を始められる。
+                    // オンライン対戦は Game Center 側で新しい対戦を作り直す。
                     if game.playMode == .nearbyHost && !game.didLoseConnection {
                         Button {
                             Haptics.tap()
@@ -109,7 +110,7 @@ struct ResultView: View {
                             Label("もう一度あそぶ", systemImage: "arrow.clockwise")
                         }
                         .buttonStyle(CuteButtonStyle(color: Theme.playerColor(0)))
-                    } else if !game.didLoseConnection {
+                    } else if game.playMode == .nearbyGuest && !game.didLoseConnection {
                         Text("ホストが次の対戦を始めるのを待っています…")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -117,7 +118,7 @@ struct ResultView: View {
 
                     Button {
                         Haptics.tap()
-                        game.endNearbyGame()
+                        game.leaveNetworkedGame()
                         game.backToSetup()
                     } label: {
                         Text("対戦をおわる")

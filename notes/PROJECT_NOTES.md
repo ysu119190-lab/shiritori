@@ -32,6 +32,8 @@ Shiritori/
     SoloStats.swift         1人プレイの戦績（勝敗・連勝・最高連勝）
     NearbySession.swift     近距離通信（MultipeerConnectivity）の薄いラッパー
     PeerMessage.swift       端末間メッセージと GameSnapshot（Codable）
+    GameCenterManager.swift Game Center 認証＋ターン制対戦の受け渡し
+    OnlineMatchState.swift  matchData として持ち回るゲーム状態（Codable）
     Haptics.swift           触覚フィードバック
   Views/
     RootView.swift          フェーズ切替＋スプラッシュ＋起動時広告
@@ -44,6 +46,7 @@ Shiritori/
     FlickKeyboard.swift     フリック入力
     Theme.swift             共通の見た目（背景・カード・ボタン・フォント）
     NearbyLobbyView.swift   近くの端末と待ち合わせて接続する画面
+    GameCenterMatchmakerView.swift  対戦相手さがし画面のブリッジ
   Resources/words.txt       厳選辞書（約1,200語・出題/ヒント/判定）
   Resources/words-large.txt 検証用拡張辞書（約45,000語・判定のみ。ipadic由来）
   Resources/ipadic-COPYING.txt  拡張辞書のライセンス（同梱必須）
@@ -54,7 +57,9 @@ ShiritoriTests/             ユニットテスト（XCTest, ホスト付き）
   CPUOpponentTests.swift    CPUの手の選択（乱数固定で決定的に検証）
   SoloStatsTests.swift      戦績・連勝の記録（専用UserDefaultsスイート）
   PeerMessageTests.swift    通信メッセージ/スナップショットの往復
-Info.plist                  実ファイル（AdMob のアプリID等）※同期グループ外
+  OnlineMatchStateTests.swift  オンライン対戦データの往復・プレイヤー登録
+Info.plist                  実ファイル（AdMob のアプリID・ローカルネットワーク権限等）※同期グループ外
+Shiritori.entitlements      Game Center の entitlement ※App ID 側の有効化も必要
 Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 .github/workflows/
   ci.yml                    PR / main push で iOS ビルド検証
@@ -85,7 +90,10 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 - **近距離対戦はホスト権威にする。** ホストが `ShiritoriGame` を動かし、状態スナップショットを
   配る。ゲストは入力を送るだけで自分では判定しない（両端末で判定すると食い違うため）。
   ゲストの時計は表示のみで、決着を宣言するのはホスト。
-- **近距離対戦では実在判定を同梱辞書だけにする。** ウェブ判定や参加者承認は非同期の
+- **オンライン対戦は状態を持ち回る方式。** ホスト権威ではなく、手番の端末だけが
+  `OnlineMatchState` を書き換えて次の人へ渡す。同時に書き換わらないので競合しない。
+  プレイヤーは「手番が回ってきた人から順に登録」して、参加の順番に依存しないようにする。
+- **通信対戦では実在判定を同梱辞書だけにする。** ウェブ判定や参加者承認は非同期の
   往復が増えて待ちが読めないため、46,000語のオフライン辞書で即断する。
 - **広告は「出せなければ出さない」。** アプリIDが無い / 未ロード / 画面遷移中は黙って
   スキップし、ゲームは絶対に止めない。
@@ -107,6 +115,7 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 | 制限時間 | 1手ごとの秒数指定（任意） |
 | 1人プレイ | CPU対戦（よわい/ふつう/つよい）。勝敗・連勝を記録、勝利でボーナスポイント |
 | 近くの人と対戦 | MultipeerConnectivity で2台を直結。**ホスト権威**（判定はホストのみ） |
+| はなれた人と対戦 | Game Center のターン制。状態を matchData で持ち回る（打つ側が判定） |
 | 広告 | 起動時・開始時・決着時のインタースティシャル（**60秒の頻度制限**） |
 
 ---

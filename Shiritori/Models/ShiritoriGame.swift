@@ -26,8 +26,12 @@ enum PlayMode: Equatable {
     case local        // 同じ端末（パス＆プレイ、または CPU 対戦）
     case nearbyHost   // 近くの端末と対戦：自分がホスト（判定はこちらが行う）
     case nearbyGuest  // 近くの端末と対戦：自分がゲスト（判定はホストに任せる）
+    case online       // Game Center のターン制対戦
 
-    var isNearby: Bool { self != .local }
+    /// 近くの端末との対戦か。
+    var isNearby: Bool { self == .nearbyHost || self == .nearbyGuest }
+    /// 通信対戦（近距離 or オンライン）か。
+    var isNetworked: Bool { self != .local }
 }
 
 /// ゲーム進行のフェーズ。
@@ -86,7 +90,7 @@ final class ShiritoriGame: ObservableObject {
     // MARK: - 1人プレイ（CPU対戦）
 
     /// 1人プレイ（CPU対戦）モードか。近くの端末と対戦しているときは CPU は使わない。
-    var isSoloMode: Bool { settings.isSoloMode && !playMode.isNearby }
+    var isSoloMode: Bool { settings.isSoloMode && !playMode.isNetworked }
 
     /// ソロモードでのCPUのプレイヤー番号（人間が0、CPUが1）。
     let cpuPlayerIndex = 1
@@ -107,7 +111,7 @@ final class ShiritoriGame: ObservableObject {
     private var cpuTask: Task<Void, Never>? = nil
 
     var players: [String] {
-        if let nearbyPlayerNames { return nearbyPlayerNames }
+        if let networkPlayerNames { return networkPlayerNames }
         if isSoloMode {
             let humanName = settings.playerNames.first ?? "あなた"
             return [humanName, settings.cpuDifficulty.cpuName]
@@ -286,6 +290,24 @@ final class ShiritoriGame: ObservableObject {
     ) -> SubmitResult {
         let reading = KanaUtils.normalize(rawInput)
 
+        // オンライン対戦は、打つ側の端末で判定して状態ごと相手へ渡す。
+        if playMode == .online {
+            guard !reading.isEmpty else {
+                return .rejected(reason: "単語を入力してください")
+            }
+            guard KanaUtils.isAllKana(reading) else {
+                return .rejected(reason: "ひらがな（またはカタカナ）で入力してください")
+            }
+            if let reason = ruleViolation(for: reading) {
+                return .rejected(reason: reason)
+            }
+            // オンライン対戦も、待ち時間が読めるように同梱辞書だけで判定する。
+            if settings.checkExistence, !validator.exists(reading) {
+                return .rejected(reason: "「\(reading)」は辞書に見つかりませんでした")
+            }
+            return submitOnline(reading)
+        }
+
         // 近くの端末対戦のゲストは自分で判定しない。ホストへ送って結果を待つ。
         if playMode == .nearbyGuest {
             guard !reading.isEmpty else {
@@ -304,38 +326,9 @@ final class ShiritoriGame: ObservableObject {
             return .rejected(reason: "ひらがな（またはカタカナ）で入力してください")
         }
 
-        // 文字数チェック
-        let length = reading.count
-        if settings.isRandomLengthMode {
-            // ランダム文字数モード：ちょうどお題の文字数でなければならない。
-            if let required = requiredLength, length != required {
-                return .rejected(reason: "ちょうど\(required)文字で入力してください")
-            }
-        } else {
-            if length < settings.minLength {
-                return .rejected(reason: "\(settings.minLength)文字以上で入力してください")
-            }
-            if settings.isMaxLengthEnabled && length > settings.maxLength {
-                return .rejected(reason: "\(settings.maxLength)文字以内で入力してください")
-            }
-        }
-
-        // すでに使われた語か
-        if usedReadings.contains(reading) {
-            return .rejected(reason: "「\(reading)」はすでに使われています")
-        }
-
-        // つながりチェック（長音「ー」終わりは、直前のかな・その母音のどちらでも許容）。
-        if requiredStartKana != nil {
-            guard let start = KanaUtils.startKana(of: reading) else {
-                return .rejected(reason: startHintMessage)
-            }
-            let ok = acceptableStartKanas.contains {
-                KanaUtils.connects(previousEnd: $0, nextStart: start, ignoreDakuten: settings.ignoreDakuten)
-            }
-            if !ok {
-                return .rejected(reason: startHintMessage)
-            }
+        // 文字数・重複・つながりのチェック
+        if let reason = ruleViolation(for: reading) {
+            return .rejected(reason: reason)
         }
 
         // 実在チェック（承認・ウェブ判定OKならスキップ）。
@@ -345,7 +338,7 @@ final class ShiritoriGame: ObservableObject {
             if !validator.exists(reading) {
                 // 近くの端末対戦では、待ち時間や食い違いを避けるため
                 // 同梱辞書（約46,000語）だけで即断する。
-                if playMode.isNearby {
+                if playMode.isNetworked {
                     return .rejected(reason: "「\(reading)」は辞書に見つかりませんでした")
                 }
                 return .needsExistenceConfirmation(reading: reading)
@@ -380,11 +373,56 @@ final class ShiritoriGame: ObservableObject {
         return .accepted
     }
 
+    /// 文字数・重複・つながりのルール違反を調べる。違反していなければ nil。
+    /// ローカル対戦・近距離対戦・オンライン対戦で同じ判定を使うため、ここにまとめている。
+    private func ruleViolation(for reading: String) -> String? {
+        let length = reading.count
+
+        // 文字数
+        if settings.isRandomLengthMode {
+            // ランダム文字数モード：ちょうどお題の文字数でなければならない。
+            if let required = requiredLength, length != required {
+                return "ちょうど\(required)文字で入力してください"
+            }
+        } else {
+            if length < settings.minLength {
+                return "\(settings.minLength)文字以上で入力してください"
+            }
+            if settings.isMaxLengthEnabled && length > settings.maxLength {
+                return "\(settings.maxLength)文字以内で入力してください"
+            }
+        }
+
+        // すでに使われた語か
+        if usedReadings.contains(reading) {
+            return "「\(reading)」はすでに使われています"
+        }
+
+        // つながり（長音「ー」終わりは、直前のかな・その母音のどちらでも許容）
+        if requiredStartKana != nil {
+            guard let start = KanaUtils.startKana(of: reading) else {
+                return startHintMessage
+            }
+            let ok = acceptableStartKanas.contains {
+                KanaUtils.connects(previousEnd: $0, nextStart: start, ignoreDakuten: settings.ignoreDakuten)
+            }
+            if !ok {
+                return startHintMessage
+            }
+        }
+
+        return nil
+    }
+
     /// 手番のプレイヤーが降参する。
     func giveUp() {
         // ゲストはホストに伝えるだけ。決着はホストが宣言する。
         if playMode == .nearbyGuest {
             nearby?.send(.giveUp)
+            return
+        }
+        if playMode == .online {
+            resignOnline()
             return
         }
         finish(loser: currentPlayerIndex, message: "\(currentPlayerName)さんが降参しました")
@@ -395,6 +433,8 @@ final class ShiritoriGame: ObservableObject {
     func timeExpired() {
         guard phase == .playing else { return }
         guard playMode != .nearbyGuest else { return }
+        // オンライン対戦の期限は Game Center が管理する。
+        guard playMode != .online else { return }
         finish(loser: currentPlayerIndex, message: "\(currentPlayerName)さんの時間切れです")
     }
 
@@ -468,8 +508,8 @@ final class ShiritoriGame: ObservableObject {
 
     /// 対戦の形式。
     @Published private(set) var playMode: PlayMode = .local
-    /// 近くの端末対戦で使うプレイヤー名（ホスト, ゲスト の順）。
-    @Published private(set) var nearbyPlayerNames: [String]? = nil
+    /// 通信対戦で使うプレイヤー名（手番の順）。近距離は「ホスト, ゲスト」の順。
+    @Published private(set) var networkPlayerNames: [String]? = nil
     /// 自分のプレイヤー番号（ホスト=0 / ゲスト=1）。
     @Published private(set) var myPlayerIndex: Int = 0
     /// 相手から届いた却下理由など、通信まわりの通知。
@@ -481,7 +521,7 @@ final class ShiritoriGame: ObservableObject {
 
     /// 自分の手番か（近くの端末対戦のときだけ意味を持つ）。
     var isMyTurn: Bool {
-        guard playMode.isNearby else { return true }
+        guard playMode.isNetworked else { return true }
         return currentPlayerIndex == myPlayerIndex
     }
 
@@ -498,7 +538,7 @@ final class ShiritoriGame: ObservableObject {
         playMode = asHost ? .nearbyHost : .nearbyGuest
         myPlayerIndex = asHost ? 0 : 1
         // 名前は「ホスト, ゲスト」の順にそろえる。
-        nearbyPlayerNames = asHost ? [myName, opponentName] : [opponentName, myName]
+        networkPlayerNames = asHost ? [myName, opponentName] : [opponentName, myName]
 
         session.onReceive = { [weak self] message in
             self?.handle(message)
@@ -519,9 +559,21 @@ final class ShiritoriGame: ObservableObject {
         nearby?.stop()
         nearby = nil
         playMode = .local
-        nearbyPlayerNames = nil
+        networkPlayerNames = nil
         myPlayerIndex = 0
         networkMessage = nil
+    }
+
+    /// 通信対戦（近距離・オンライン）から抜ける。どちらの形式でも呼べる。
+    func leaveNetworkedGame() {
+        switch playMode {
+        case .nearbyHost, .nearbyGuest:
+            endNearbyGame()
+        case .online:
+            endOnlineMatch()
+        case .local:
+            break
+        }
     }
 
     /// 受け取ったメッセージを処理する。
@@ -592,7 +644,7 @@ final class ShiritoriGame: ObservableObject {
 
     /// ゲストが受け取った状態を反映する。
     private func apply(_ snapshot: GameSnapshot) {
-        nearbyPlayerNames = snapshot.playerNames
+        networkPlayerNames = snapshot.playerNames
         myPlayerIndex = snapshot.guestPlayerIndex
         history = snapshot.history
         usedReadings = Set(snapshot.history.map(\.reading))
@@ -618,6 +670,159 @@ final class ShiritoriGame: ObservableObject {
     /// ホストが自分の手を打ったあとに状態を配るためのフック。
     fileprivate func broadcastIfHost() {
         broadcastSnapshot()
+    }
+
+    // MARK: - オンライン対戦（Game Center・ターン制）
+
+    /// 進行中のオンライン対戦の状態。
+    @Published private(set) var onlineState: OnlineMatchState? = nil
+
+    private var gameCenter: GameCenterManager { GameCenterManager.shared }
+
+    /// オンライン対戦を始める（対戦相手さがしから戻ってきたときに呼ぶ）。
+    func beginOnlineMatch() {
+        playMode = .online
+        didLoseConnection = false
+        networkMessage = nil
+        gameCenter.onMatchUpdated = { [weak self] state, _ in
+            self?.applyOnline(state)
+        }
+        gameCenter.onMatchEnded = { [weak self] state in
+            self?.applyOnline(state)
+        }
+        // すでに読み込み済みの状態があれば反映する。
+        applyOnline(gameCenter.matchState)
+    }
+
+    /// オンライン対戦から抜ける。
+    func endOnlineMatch() {
+        gameCenter.onMatchUpdated = nil
+        gameCenter.onMatchEnded = nil
+        gameCenter.leaveMatch()
+        onlineState = nil
+        networkPlayerNames = nil
+        playMode = .local
+        myPlayerIndex = 0
+    }
+
+    /// 受け取ったオンライン対戦の状態を画面に反映する。
+    /// 状態がまだ無い（対戦を作った直後）なら、自分の手番のときに初期状態を作る。
+    private func applyOnline(_ state: OnlineMatchState?) {
+        guard playMode == .online else { return }
+        guard let myID = gameCenter.localPlayerID else { return }
+
+        guard var state else {
+            // 対戦データが空＝作られたばかり。自分の手番なら初期化する。
+            if gameCenter.isMyTurn {
+                createInitialOnlineState(myID: myID)
+            }
+            return
+        }
+
+        // 自分をプレイヤーとして登録する（参加の順番に依存しないようにする）。
+        let myIndex = state.ensurePlayer(id: myID, name: gameCenter.localPlayerName)
+
+        onlineState = state
+        myPlayerIndex = myIndex
+        networkPlayerNames = state.playerNames
+        state.rules.apply(to: &settings)
+
+        history = state.history
+        usedReadings = Set(state.history.map(\.reading))
+        requiredStartKana = state.requiredStartKana?.first
+        requiredLength = state.requiredLength
+        // 手番は Game Center が持っている情報を正とする。
+        currentPlayerIndex = gameCenter.isMyTurn ? myIndex : (myIndex == 0 ? 1 : 0)
+        resultMessage = state.resultMessage
+        loserIndex = state.loserID.flatMap { state.index(of: $0) }
+
+        let newPhase: GamePhase = state.isFinished ? .finished : .playing
+        if newPhase == .finished, phase != .finished {
+            Haptics.gameOver()
+        }
+        phase = newPhase
+    }
+
+    /// 対戦を作った人が、最初のお題を含む初期状態を用意する。
+    private func createInitialOnlineState(myID: String) {
+        var state = OnlineMatchState(
+            playerIDs: [],
+            playerNames: [],
+            history: [],
+            requiredStartKana: nil,
+            requiredLength: nil,
+            rules: OnlineMatchState.Rules(from: settings),
+            isFinished: false,
+            loserID: nil,
+            resultMessage: ""
+        )
+        let myIndex = state.ensurePlayer(id: myID, name: gameCenter.localPlayerName)
+
+        // アプリからのお題を1語置いて、そこから続けてもらう。
+        if let seed = validatorRandomStartWord() {
+            state.history.append(
+                Move(word: seed, reading: seed, playerIndex: -1,
+                     acceptedByChallenge: false, acceptedByWeb: false, isSeed: true)
+            )
+            state.requiredStartKana = KanaUtils.connectingKana(of: seed).map(String.init)
+        }
+        state.requiredLength = rolledLength(for: state.rules)
+
+        gameCenter.saveInitialState(state)
+        myPlayerIndex = myIndex
+        applyOnline(state)
+    }
+
+    /// オンライン対戦で自分の手を打つ。
+    /// ルール判定は打つ側の端末で行い、結果を含んだ状態を相手へ渡す。
+    private func submitOnline(_ reading: String) -> SubmitResult {
+        guard var state = onlineState, let myID = gameCenter.localPlayerID else {
+            return .rejected(reason: "対戦の準備ができていません")
+        }
+        guard gameCenter.isMyTurn else {
+            return .rejected(reason: "あいての番です")
+        }
+
+        let myIndex = state.ensurePlayer(id: myID, name: gameCenter.localPlayerName)
+        state.history.append(
+            Move(word: reading, reading: reading, playerIndex: myIndex,
+                 acceptedByChallenge: false, acceptedByWeb: false)
+        )
+
+        if KanaUtils.endsWithN(reading) {
+            // 「ん」止まりは打った人の負け。ここで対戦を終える。
+            state.isFinished = true
+            state.loserID = myID
+            state.resultMessage = "「\(reading)」は『ん』で終わりました"
+            gameCenter.finishMatch(with: state)
+            applyOnline(state)
+            return .gameOverByN(loser: myIndex)
+        }
+
+        state.requiredStartKana = KanaUtils.connectingKana(of: reading).map(String.init)
+        state.requiredLength = rolledLength(for: state.rules)
+        gameCenter.endTurn(with: state)
+        applyOnline(state)
+        return .accepted
+    }
+
+    /// オンライン対戦で降参する。
+    private func resignOnline() {
+        guard let state = onlineState else { return }
+        gameCenter.resign(state: state)
+    }
+
+    /// ルールに従って、次の手番のお題文字数を決める。
+    private func rolledLength(for rules: OnlineMatchState.Rules) -> Int? {
+        guard rules.isRandomLengthMode else { return nil }
+        let lo = min(rules.randomLengthMin, rules.randomLengthMax)
+        let hi = max(rules.randomLengthMin, rules.randomLengthMax)
+        return Int.random(in: lo...hi)
+    }
+
+    /// お題の語を辞書から選ぶ（`seedFirstWord` と同じ選び方）。
+    private func validatorRandomStartWord() -> String? {
+        validator.randomStartWord()
     }
 
     private func finish(loser: Int, message: String) {
