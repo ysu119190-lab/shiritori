@@ -18,6 +18,16 @@ enum SubmitResult: Equatable {
     case gameOverByN(loser: Int)     // 「ん」で終わったので負け
     case rejected(reason: String)    // ルール違反。同じプレイヤーが打ち直す。
     case needsExistenceConfirmation(reading: String) // 辞書に無い。参加者の承認待ち。
+    case sentToHost                  // 近くの端末対戦：相手（ホスト）へ送った。判定待ち。
+}
+
+/// 対戦の形式。
+enum PlayMode: Equatable {
+    case local        // 同じ端末（パス＆プレイ、または CPU 対戦）
+    case nearbyHost   // 近くの端末と対戦：自分がホスト（判定はこちらが行う）
+    case nearbyGuest  // 近くの端末と対戦：自分がゲスト（判定はホストに任せる）
+
+    var isNearby: Bool { self != .local }
 }
 
 /// ゲーム進行のフェーズ。
@@ -75,8 +85,8 @@ final class ShiritoriGame: ObservableObject {
 
     // MARK: - 1人プレイ（CPU対戦）
 
-    /// 1人プレイ（CPU対戦）モードか。
-    var isSoloMode: Bool { settings.isSoloMode }
+    /// 1人プレイ（CPU対戦）モードか。近くの端末と対戦しているときは CPU は使わない。
+    var isSoloMode: Bool { settings.isSoloMode && !playMode.isNearby }
 
     /// ソロモードでのCPUのプレイヤー番号（人間が0、CPUが1）。
     let cpuPlayerIndex = 1
@@ -97,6 +107,7 @@ final class ShiritoriGame: ObservableObject {
     private var cpuTask: Task<Void, Never>? = nil
 
     var players: [String] {
+        if let nearbyPlayerNames { return nearbyPlayerNames }
         if isSoloMode {
             let humanName = settings.playerNames.first ?? "あなた"
             return [humanName, settings.cpuDifficulty.cpuName]
@@ -163,6 +174,8 @@ final class ShiritoriGame: ObservableObject {
         rollRequiredLength()
         phase = .playing
         discardSavedGame()
+        // 近くの端末対戦なら、開始状態を相手にも配る。
+        broadcastIfHost()
     }
 
     /// 最初の単語をアプリ側が出題する。以降のプレイヤーはこの語に続けていく。
@@ -273,6 +286,16 @@ final class ShiritoriGame: ObservableObject {
     ) -> SubmitResult {
         let reading = KanaUtils.normalize(rawInput)
 
+        // 近くの端末対戦のゲストは自分で判定しない。ホストへ送って結果を待つ。
+        if playMode == .nearbyGuest {
+            guard !reading.isEmpty else {
+                return .rejected(reason: "単語を入力してください")
+            }
+            networkMessage = nil
+            nearby?.send(.submit(word: reading))
+            return .sentToHost
+        }
+
         // 入力の基本チェック
         if reading.isEmpty {
             return .rejected(reason: "単語を入力してください")
@@ -320,6 +343,11 @@ final class ShiritoriGame: ObservableObject {
         // ウェブ判定や参加者承認へ進むかは呼び出し側（View）が決める。
         if settings.checkExistence && !forceAcceptExistence {
             if !validator.exists(reading) {
+                // 近くの端末対戦では、待ち時間や食い違いを避けるため
+                // 同梱辞書（約46,000語）だけで即断する。
+                if playMode.isNearby {
+                    return .rejected(reason: "「\(reading)」は辞書に見つかりませんでした")
+                }
                 return .needsExistenceConfirmation(reading: reading)
             }
         }
@@ -340,24 +368,33 @@ final class ShiritoriGame: ObservableObject {
 
         // 「ん」止まりなら、この語は有効だが打った人の負け。
         if KanaUtils.endsWithN(reading) {
-            finish(loser: currentPlayerIndex, message: "「\(reading)」は『ん』で終わりました")
-            return .gameOverByN(loser: currentPlayerIndex)
+            let loser = currentPlayerIndex
+            finish(loser: loser, message: "「\(reading)」は『ん』で終わりました")
+            return .gameOverByN(loser: loser)
         }
 
         // 次のプレイヤーへ
         requiredStartKana = KanaUtils.connectingKana(of: reading)
         advanceTurn()
+        broadcastIfHost()
         return .accepted
     }
 
     /// 手番のプレイヤーが降参する。
     func giveUp() {
+        // ゲストはホストに伝えるだけ。決着はホストが宣言する。
+        if playMode == .nearbyGuest {
+            nearby?.send(.giveUp)
+            return
+        }
         finish(loser: currentPlayerIndex, message: "\(currentPlayerName)さんが降参しました")
     }
 
     /// 制限時間切れ。手番のプレイヤーの負け。
+    /// ゲストの時計は表示だけなので、決着を宣言するのはホスト（またはローカル対戦）だけ。
     func timeExpired() {
         guard phase == .playing else { return }
+        guard playMode != .nearbyGuest else { return }
         finish(loser: currentPlayerIndex, message: "\(currentPlayerName)さんの時間切れです")
     }
 
@@ -427,6 +464,162 @@ final class ShiritoriGame: ObservableObject {
         isCPUThinking = false
     }
 
+    // MARK: - 近くの端末との対戦
+
+    /// 対戦の形式。
+    @Published private(set) var playMode: PlayMode = .local
+    /// 近くの端末対戦で使うプレイヤー名（ホスト, ゲスト の順）。
+    @Published private(set) var nearbyPlayerNames: [String]? = nil
+    /// 自分のプレイヤー番号（ホスト=0 / ゲスト=1）。
+    @Published private(set) var myPlayerIndex: Int = 0
+    /// 相手から届いた却下理由など、通信まわりの通知。
+    @Published var networkMessage: String? = nil
+    /// 相手との接続が切れたか。
+    @Published private(set) var didLoseConnection = false
+
+    private var nearby: NearbySession?
+
+    /// 自分の手番か（近くの端末対戦のときだけ意味を持つ）。
+    var isMyTurn: Bool {
+        guard playMode.isNearby else { return true }
+        return currentPlayerIndex == myPlayerIndex
+    }
+
+    /// 近くの端末との対戦を始める。
+    /// - Parameters:
+    ///   - session: 接続済みのセッション。
+    ///   - asHost: 自分がホストか。ホストが判定と進行を受け持つ。
+    ///   - myName: 自分の表示名。
+    ///   - opponentName: 相手の表示名。
+    func startNearbyGame(session: NearbySession, asHost: Bool, myName: String, opponentName: String) {
+        nearby = session
+        didLoseConnection = false
+        networkMessage = nil
+        playMode = asHost ? .nearbyHost : .nearbyGuest
+        myPlayerIndex = asHost ? 0 : 1
+        // 名前は「ホスト, ゲスト」の順にそろえる。
+        nearbyPlayerNames = asHost ? [myName, opponentName] : [opponentName, myName]
+
+        session.onReceive = { [weak self] message in
+            self?.handle(message)
+        }
+        session.onDisconnect = { [weak self] in
+            self?.handleDisconnect()
+        }
+
+        if asHost {
+            // ホストだけがゲームを初期化する（start() の中で状態を配る）。
+            start()
+        }
+    }
+
+    /// 近くの端末との対戦を終える（画面を離れるとき）。
+    func endNearbyGame() {
+        nearby?.send(.quit)
+        nearby?.stop()
+        nearby = nil
+        playMode = .local
+        nearbyPlayerNames = nil
+        myPlayerIndex = 0
+        networkMessage = nil
+    }
+
+    /// 受け取ったメッセージを処理する。
+    private func handle(_ message: PeerMessage) {
+        switch message {
+        case .hello:
+            // 参加時の挨拶。名前は接続時にすでに反映済みなので何もしない。
+            break
+
+        case .submit(let word):
+            // ホストだけが判定する。ゲストの手番でなければ無視。
+            guard playMode == .nearbyHost, currentPlayerIndex != myPlayerIndex else { return }
+            let result = submit(word)
+            if case .rejected(let reason) = result {
+                // 却下のときは状態が変わらないので、理由だけ返す。
+                nearby?.send(.rejected(reason: reason))
+            }
+            // 受理・決着時の状態配信は submit / finish 側で行う。
+
+        case .giveUp:
+            guard playMode == .nearbyHost, phase == .playing else { return }
+            let guestIndex = 1
+            finish(loser: guestIndex, message: "\(players[guestIndex])さんが降参しました")
+
+        case .snapshot(let snapshot):
+            guard playMode == .nearbyGuest else { return }
+            apply(snapshot)
+
+        case .rejected(let reason):
+            guard playMode == .nearbyGuest else { return }
+            networkMessage = reason
+
+        case .quit:
+            handleDisconnect()
+        }
+    }
+
+    private func handleDisconnect() {
+        guard playMode.isNearby else { return }
+        didLoseConnection = true
+        if phase == .playing {
+            resultMessage = "相手との接続が切れました"
+            loserIndex = nil
+            phase = .finished
+        }
+    }
+
+    /// ホストが今の状態をゲストへ配る。
+    private func broadcastSnapshot() {
+        guard playMode == .nearbyHost else { return }
+        let snapshot = GameSnapshot(
+            playerNames: players,
+            history: history,
+            currentPlayerIndex: currentPlayerIndex,
+            requiredStartKana: requiredStartKana.map(String.init),
+            requiredLength: requiredLength,
+            remainingTime: remainingTime,
+            isFinished: phase == .finished,
+            loserIndex: loserIndex,
+            resultMessage: resultMessage,
+            guestPlayerIndex: 1,
+            minLength: settings.minLength,
+            maxLength: settings.isMaxLengthEnabled ? settings.maxLength : nil,
+            isTimed: isTimed
+        )
+        nearby?.send(.snapshot(snapshot))
+    }
+
+    /// ゲストが受け取った状態を反映する。
+    private func apply(_ snapshot: GameSnapshot) {
+        nearbyPlayerNames = snapshot.playerNames
+        myPlayerIndex = snapshot.guestPlayerIndex
+        history = snapshot.history
+        usedReadings = Set(snapshot.history.map(\.reading))
+        currentPlayerIndex = snapshot.currentPlayerIndex
+        requiredStartKana = snapshot.requiredStartKana?.first
+        requiredLength = snapshot.requiredLength
+        remainingTime = snapshot.remainingTime
+        loserIndex = snapshot.loserIndex
+        resultMessage = snapshot.resultMessage
+        // 表示に使うルールもそろえる。
+        settings.minLength = snapshot.minLength
+        settings.isMaxLengthEnabled = snapshot.maxLength != nil
+        if let maxLength = snapshot.maxLength { settings.maxLength = maxLength }
+        settings.turnTimeLimit = snapshot.isTimed ? max(settings.turnTimeLimit, 1) : 0
+
+        let newPhase: GamePhase = snapshot.isFinished ? .finished : .playing
+        if newPhase == .finished, phase != .finished {
+            Haptics.gameOver()
+        }
+        phase = newPhase
+    }
+
+    /// ホストが自分の手を打ったあとに状態を配るためのフック。
+    fileprivate func broadcastIfHost() {
+        broadcastSnapshot()
+    }
+
     private func finish(loser: Int, message: String) {
         cancelCPUTurn()
         loserIndex = loser
@@ -455,6 +648,7 @@ final class ShiritoriGame: ObservableObject {
         phase = .finished
         discardSavedGame()
         Haptics.gameOver()
+        broadcastIfHost()
     }
 
     /// 決着時に獲得したボーナスポイント（結果画面の表示用）。

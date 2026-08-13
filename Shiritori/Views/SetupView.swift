@@ -5,6 +5,7 @@ struct SetupView: View {
     @EnvironmentObject private var game: ShiritoriGame
     @ObservedObject private var points = PointsStore.shared
     @ObservedObject private var solo = SoloStats.shared
+    @State private var showNearbyLobby = false
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,10 @@ struct SetupView: View {
             .navigationTitle("しりとり")
             .safeAreaInset(edge: .bottom) {
                 startButton
+            }
+            .sheet(isPresented: $showNearbyLobby) {
+                NearbyLobbyView(myName: game.settings.playerNames.first ?? "プレイヤー")
+                    .environmentObject(game)
             }
         }
     }
@@ -114,6 +119,29 @@ struct SetupView: View {
                     }
                 }
                 soloStatsRow
+            } else {
+                Button {
+                    Haptics.tap()
+                    showNearbyLobby = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "iphone.gen3.radiowaves.left.and.right")
+                            .font(.title3)
+                            .foregroundStyle(Theme.playerColor(2))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("近くの人と対戦する")
+                                .font(Theme.rounded(16, weight: .bold))
+                                .foregroundStyle(.primary)
+                            Text("別の端末とつないで1対1")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         } header: {
             Text("あそびかた")

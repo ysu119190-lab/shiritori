@@ -28,6 +28,17 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 
+	<!-- 近くの端末との対戦（MultipeerConnectivity）に必要。
+	     iOS 14 以降はこの2つが無いと相手を見つけられない。
+	     NSBonjourServices は NearbySession.serviceType と一致させること。 -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>近くの端末とつないでしりとり対戦をするために使います。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_shiritori-game._tcp</string>
+		<string>_shiritori-game._udp</string>
+	</array>
+
 	<!-- AdMob のアプリID。これが無いと SDK が例外を投げてアプリが落ちる。
 	     本番のアプリID（アプリIDは全ビルド共通でよい。広告ユニットIDの側を
 	     AdConfig が #if DEBUG でテスト用に切り替える）。 -->

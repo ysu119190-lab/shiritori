@@ -30,6 +30,8 @@ Shiritori/
     GameRecord.swift        最長記録
     CPUOpponent.swift       CPUの手の選択（難易度別・乱数注入でテスト可能）
     SoloStats.swift         1人プレイの戦績（勝敗・連勝・最高連勝）
+    NearbySession.swift     近距離通信（MultipeerConnectivity）の薄いラッパー
+    PeerMessage.swift       端末間メッセージと GameSnapshot（Codable）
     Haptics.swift           触覚フィードバック
   Views/
     RootView.swift          フェーズ切替＋スプラッシュ＋起動時広告
@@ -41,6 +43,7 @@ Shiritori/
     KanaKeyboard.swift      50音タップ入力
     FlickKeyboard.swift     フリック入力
     Theme.swift             共通の見た目（背景・カード・ボタン・フォント）
+    NearbyLobbyView.swift   近くの端末と待ち合わせて接続する画面
   Resources/words.txt       厳選辞書（約1,200語・出題/ヒント/判定）
   Resources/words-large.txt 検証用拡張辞書（約45,000語・判定のみ。ipadic由来）
   Resources/ipadic-COPYING.txt  拡張辞書のライセンス（同梱必須）
@@ -50,6 +53,7 @@ ShiritoriTests/             ユニットテスト（XCTest, ホスト付き）
   WordValidatorTests.swift  同梱辞書の実在判定（オフライン）
   CPUOpponentTests.swift    CPUの手の選択（乱数固定で決定的に検証）
   SoloStatsTests.swift      戦績・連勝の記録（専用UserDefaultsスイート）
+  PeerMessageTests.swift    通信メッセージ/スナップショットの往復
 Info.plist                  実ファイル（AdMob のアプリID等）※同期グループ外
 Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 .github/workflows/
@@ -78,6 +82,11 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 - **ゲーム開始時のお題はアプリが出題**（`isSeed`）。記録の語数 `chainCount` には数えない。
 - **`PointsStore` は @MainActor にしない。** 非 MainActor の `ShiritoriGame` から
   加算するため。呼び出しは実際にはすべてメインスレッド上。
+- **近距離対戦はホスト権威にする。** ホストが `ShiritoriGame` を動かし、状態スナップショットを
+  配る。ゲストは入力を送るだけで自分では判定しない（両端末で判定すると食い違うため）。
+  ゲストの時計は表示のみで、決着を宣言するのはホスト。
+- **近距離対戦では実在判定を同梱辞書だけにする。** ウェブ判定や参加者承認は非同期の
+  往復が増えて待ちが読めないため、46,000語のオフライン辞書で即断する。
 - **広告は「出せなければ出さない」。** アプリIDが無い / 未ロード / 画面遷移中は黙って
   スキップし、ゲームは絶対に止めない。
 
@@ -97,6 +106,7 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 | 演出 | 起動スプラッシュ、単語受理時のキラキラ、触覚フィードバック |
 | 制限時間 | 1手ごとの秒数指定（任意） |
 | 1人プレイ | CPU対戦（よわい/ふつう/つよい）。勝敗・連勝を記録、勝利でボーナスポイント |
+| 近くの人と対戦 | MultipeerConnectivity で2台を直結。**ホスト権威**（判定はホストのみ） |
 | 広告 | 起動時・開始時・決着時のインタースティシャル（**60秒の頻度制限**） |
 
 ---
