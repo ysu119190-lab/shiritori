@@ -20,6 +20,9 @@ struct GameView: View {
         Theme.playerColor(game.currentPlayerIndex)
     }
 
+    /// 入力を受け付けない状態か（ウェブ確認中、または CPU の手番）。
+    private var isInputLocked: Bool { isChecking || game.isCPUTurn }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -96,7 +99,7 @@ struct GameView: View {
             kanaBadge
 
             VStack(spacing: 3) {
-                Text("\(game.currentPlayerName) さんの番")
+                Text(game.isCPUTurn ? "\(game.currentPlayerName) のばん" : "\(game.currentPlayerName) さんの番")
                     .font(Theme.rounded(20, weight: .bold))
                     .foregroundStyle(playerColor)
                 if let last = game.lastMove {
@@ -237,7 +240,15 @@ struct GameView: View {
     private var inputBar: some View {
         VStack(spacing: 6) {
             HStack {
-                if isChecking {
+                if game.isCPUThinking {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("\(game.currentPlayerName) が考えています…")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .transition(.opacity)
+                } else if isChecking {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
                         Text("確認中…")
@@ -293,8 +304,9 @@ struct GameView: View {
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty || isChecking)
+            .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty || isInputLocked)
         }
+        .disabled(game.isCPUTurn)
     }
 
     /// アプリ内かなキーボードを使う入力（予測変換が出ない）。
@@ -310,16 +322,18 @@ struct GameView: View {
                 FlickKeyboard(
                     text: $input,
                     onSubmit: { attemptSubmit() },
-                    canSubmit: !input.trimmingCharacters(in: .whitespaces).isEmpty && !isChecking
+                    canSubmit: !input.trimmingCharacters(in: .whitespaces).isEmpty && !isInputLocked
                 )
             case .grid:
                 KanaKeyboard(
                     text: $input,
                     onSubmit: { attemptSubmit() },
-                    canSubmit: !input.trimmingCharacters(in: .whitespaces).isEmpty && !isChecking
+                    canSubmit: !input.trimmingCharacters(in: .whitespaces).isEmpty && !isInputLocked
                 )
             }
         }
+        .disabled(game.isCPUTurn)
+        .opacity(game.isCPUTurn ? 0.5 : 1)
     }
 
     /// かなキーボード入力時の、入力中テキストの表示欄。
@@ -382,7 +396,7 @@ struct GameView: View {
         }
         .buttonStyle(.bordered)
         .tint(.yellow)
-        .disabled(!game.canUseHint)
+        .disabled(!game.canUseHint || game.isCPUTurn)
     }
 
     private var giveUpButton: some View {
@@ -426,7 +440,7 @@ struct GameView: View {
     // MARK: - アクション
 
     private func attemptSubmit() {
-        guard !isChecking else { return }
+        guard !isInputLocked else { return }
         let result = game.submit(input)
         if case .needsExistenceConfirmation(let reading) = result {
             resolveExistence(reading)
@@ -505,6 +519,8 @@ struct GameView: View {
 
     private func tick() {
         guard game.phase == .playing, game.isTimed else { return }
+        // CPU が考えている間は持ち時間を減らさない。
+        guard !game.isCPUTurn else { return }
         if game.remainingTime > 0 {
             game.remainingTime -= 1
         }

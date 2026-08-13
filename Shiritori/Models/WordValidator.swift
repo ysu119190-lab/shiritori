@@ -24,10 +24,28 @@ final class WordValidator {
     /// 端末の国語辞書も利用するか。
     var useSystemDictionary: Bool
 
+    /// 開始音（濁点を清音へ寄せたキー）ごとの収録語数。
+    /// 「その音から始められる語がどれだけ残っているか」の目安として、CPUの戦略に使う。
+    private let startKanaCounts: [Character: Int]
+
     init(useSystemDictionary: Bool = true) {
-        self.curatedDictionary = WordValidator.loadWordList(named: "words")
-        self.extendedDictionary = WordValidator.loadWordList(named: "words-large")
+        let curated = WordValidator.loadWordList(named: "words")
+        let extended = WordValidator.loadWordList(named: "words-large")
+        self.curatedDictionary = curated
+        self.extendedDictionary = extended
         self.useSystemDictionary = useSystemDictionary
+
+        var counts: [Character: Int] = [:]
+        for word in curated.union(extended) {
+            guard let first = KanaUtils.startKana(of: word) else { continue }
+            counts[KanaUtils.matchKey(first, ignoreDakuten: true), default: 0] += 1
+        }
+        self.startKanaCounts = counts
+    }
+
+    /// 指定した音から始められる語のおおよその数（濁点は区別しない）。
+    func wordCount(startingWith kana: Character) -> Int {
+        startKanaCounts[KanaUtils.matchKey(kana, ignoreDakuten: true)] ?? 0
     }
 
     /// 同梱辞書の収録語数（設定画面などで表示する用）。厳選＋拡張の合計。
@@ -75,6 +93,35 @@ final class WordValidator {
             return true
         }
         return candidates.randomElement()
+    }
+
+    /// CPUの手の候補となる語を抽出する。
+    /// - Parameters:
+    ///   - startKanas: このいずれかの音から始まる語（長音終わりの母音接続に対応するため複数）。
+    ///   - includeExtended: 拡張辞書も候補に含めるか（よわいCPUは厳選辞書だけ＝やさしい語だけ）。
+    func candidateWords(
+        startKanas: [Character],
+        ignoreDakuten: Bool,
+        exactLength: Int?,
+        minLength: Int,
+        maxLength: Int?,
+        used: Set<String>,
+        includeExtended: Bool
+    ) -> [String] {
+        let requiredKeys = Set(startKanas.map { KanaUtils.matchKey($0, ignoreDakuten: ignoreDakuten) })
+        let pool = includeExtended ? curatedDictionary.union(extendedDictionary) : curatedDictionary
+        return pool.filter { word in
+            guard !used.contains(word) else { return false }
+            guard let first = KanaUtils.startKana(of: word) else { return false }
+            guard requiredKeys.contains(KanaUtils.matchKey(first, ignoreDakuten: ignoreDakuten)) else { return false }
+            let count = word.count
+            if let exact = exactLength {
+                return count == exact
+            }
+            if count < minLength { return false }
+            if let maxLength, count > maxLength { return false }
+            return true
+        }
     }
 
     /// 指定した読み（ひらがな）が実在するか。

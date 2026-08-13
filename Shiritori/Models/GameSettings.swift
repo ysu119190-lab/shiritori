@@ -56,6 +56,12 @@ struct GameSettings: Codable, Equatable {
     /// アプリ内かなキーボードの種類（フリック / 50音タップ）。
     var kanaKeyboardStyle: KanaKeyboardStyle
 
+    /// 1人プレイ（CPU対戦）モードか。オンのときは playerNames[0] と CPU の1対1になる。
+    var isSoloMode: Bool
+
+    /// CPU対戦の難易度。
+    var cpuDifficulty: CPUDifficulty
+
     static let minPlayers = 2
     static let maxPlayers = 6
 
@@ -78,7 +84,9 @@ struct GameSettings: Codable, Equatable {
         randomLengthMin: 2,
         randomLengthMax: 9,
         useKanaKeyboard: true,
-        kanaKeyboardStyle: .flick
+        kanaKeyboardStyle: .flick,
+        isSoloMode: false,
+        cpuDifficulty: .normal
     )
 
     /// 有効な設定へ丸める（人数・文字数の範囲を正す）。
@@ -157,5 +165,7 @@ extension GameSettings {
         useKanaKeyboard = try c.decodeIfPresent(Bool.self, forKey: .useKanaKeyboard) ?? false
         // フリック入力を既定にする。
         kanaKeyboardStyle = try c.decodeIfPresent(KanaKeyboardStyle.self, forKey: .kanaKeyboardStyle) ?? .flick
+        isSoloMode = try c.decodeIfPresent(Bool.self, forKey: .isSoloMode) ?? false
+        cpuDifficulty = try c.decodeIfPresent(CPUDifficulty.self, forKey: .cpuDifficulty) ?? .normal
     }
 }
