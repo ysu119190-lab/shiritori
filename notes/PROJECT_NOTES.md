@@ -146,12 +146,13 @@ Shiritori.xcodeproj         objectVersion 77（Xcode 16 以降）
 
 - [x] build #10 の実機起動を確認 — 完了(2026-07-28)。#9 の起動クラッシュが解消し、
       問題なく動作することを確認。原因は AdMob のアプリID未設定で確定。
-- [ ] **広告を本番IDに差し替える**（リリース前）。作業は2箇所だけ:
-      `AdConfig.productionInterstitialUnitID` と `Info.plist` の `GADApplicationIdentifier`。
-      AdMob 側でアプリ登録と広告ユニット作成が必要（ユーザーの手作業）。
-      あわせて `SKAdNetworkItems` に各広告ネットワークの識別子を追加すると計測精度が上がる
+- [x] **広告を本番IDに差し替える** — 完了(2026-08-10)。AdMob アプリ登録（ユーザー）後、
+      `Info.plist` の `GADApplicationIdentifier` と `AdConfig.productionInterstitialUnitID`
+      を本番IDに設定。Debug ビルドは従来どおりテストID（`#if DEBUG`）。
+      バナー用ユニットIDも発行済み（AdManager.swift のコメントに記録・未実装）。
+      注意: 本番IDのビルドで広告を自分で何度もタップしない（無効トラフィック対策）。
+- [ ] （任意）`SKAdNetworkItems` に各広告ネットワークの識別子を追加すると計測精度が上がる
       （いまは Google の1件のみ）。
-      注意: 開発中に本番IDを使うと無効トラフィック扱いでアカウント停止リスク。
 - [ ] **証明書の増えすぎ対策**（再発防止）。自動署名は毎回 Apple Development 証明書を
       新規発行するため、放置するとまた上限に達する。定期的に revoke するか、
       配布証明書＋プロファイル明示指定の方式に寄せるか要検討
