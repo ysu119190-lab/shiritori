@@ -32,7 +32,7 @@
 	     iOS 14 以降はこの2つが無いと相手を見つけられない。
 	     NSBonjourServices は NearbySession.serviceType と一致させること。 -->
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>近くの端末とつないでしりとり対戦をするために使います。</string>
+	<string>「近くの人と対戦する」で、同じ部屋にあるもう1台のiPhone・iPadを見つけてつなぐために使います。たとえば、相手の端末が作った部屋を一覧に表示し、単語をやり取りします。この機能を使わないときは通信しません。</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_shiritori-game._tcp</string>
